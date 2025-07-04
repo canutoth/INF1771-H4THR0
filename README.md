@@ -18,10 +18,11 @@ py -3.11 --version
 
 ## Instalação das dependências
 
-Instale o pygame na versão correta do Python:
+Instale dependências na versão correta do Python:
 
 ```powershell
 py -3.11 -m pip install pygame
+py -3.11 -m pip install keyboard
 ```
 
 ## Como rodar o servidor (visualizador)
