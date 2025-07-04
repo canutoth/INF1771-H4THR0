@@ -1,1 +1,47 @@
-[![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/Yhjtbo6k)
+# t4-desafio-final-h4thr0-bot
+
+## Requisitos
+
+- Windows
+- Python 3.11
+- Pygame
+
+## Instalação do Python 3.11
+
+Abra o terminal (PowerShell) e execute:
+
+```powershell
+winget search Python.Python
+winget install Python.Python.3.11
+py -3.11 --version
+```
+
+## Instalação das dependências
+
+Instale o pygame na versão correta do Python:
+
+```powershell
+py -3.11 -m pip install pygame
+```
+
+## Como rodar o servidor (visualizador)
+
+No terminal, execute:
+
+```powershell
+cd Server_Vizualizer
+py -3.11 main.pyc
+```
+
+## Como rodar o bot
+
+Abra outro terminal e execute:
+
+```powershell
+cd .\Game_Client
+py -3.11 Program.py
+```
+
+---
+
+Se tiver dúvidas ou problemas, abra uma issue ou entre em contato com o responsável pelo projeto.
