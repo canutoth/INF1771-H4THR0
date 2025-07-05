@@ -43,8 +43,8 @@ class DebugInterface:
         
         # Configuração dos botões de controle manual
         self.mbtns = [
-            (170,340,60,28,"CIMA","up"), (110,371,60,28,"V_ESQ","left"),
-            (230,371,60,28,"V_DIR","right"), (170,402,60,28,"BAIXO","down"),
+            (170,340,60,28,"FRENTE","up"), (110,371,60,28,"V_ESQ","left"),
+            (230,371,60,28,"V_DIR","right"), (170,402,60,28,"TRÁS","down"),
             (320,340,60,28,"ATK","attack"), (320,371,60,28,"OURO","gold"),
             (320,402,60,28,"ANEL","ring"),  (320,433,60,28,"PWR","powerup"),
         ]
