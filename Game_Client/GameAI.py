@@ -3,7 +3,7 @@ from Map.Position import Position
 from enum import Enum
 from typing import List, Dict
 
-from Debug.debug_game_ai import GameAIDebugManager  # Sistema de debug especializado
+from Debug.debug_game_ai import GameAIDebugManager  # ==DEBUG==
 
 # CLASSE PRINCIPAL DA GAME AI
 # RECEBE INFORMAÇOES DE BOT.PY, AS PROCESSA E RETORNA DECISÕES
@@ -16,11 +16,10 @@ class GameAI():
     score = 0
     energy = 0
     
-    # ========== SISTEMA DE DEBUG ESPECIALIZADO ==========
+    # ==DEBUG==
     debug_manager = None  # Gerenciador de debug específico para GameAI
     
     def __init__(self):
-        """Inicializa o sistema de debug especializado"""
         self.debug_manager = GameAIDebugManager()
 
     # STATUS DO BOT
@@ -116,7 +115,7 @@ class GameAI():
         # coordenadas atuais do player
     def GetObservations(self, o):
 
-        # DEBUG 
+         # ==DEBUG==
         self.debug_manager.log_observation(o)
     
         for s in o:
@@ -187,7 +186,7 @@ class GameAI():
         # devemos apagar as atuais para poder receber novas
         # se nao apagarmos, as novas se misturam com as anteriores
     def GetObservationsClean(self):
-        # DEBUG 
+        # ==DEBUG==
         self.debug_manager.log_observation(['nenhum'])
         pass
 
@@ -206,19 +205,20 @@ class GameAI():
         # 4- envia decisão ao servidor
         # 5- após ação enviada, reinicia voltando ao passo 1
     def GetDecision(self) -> str:
-        # ---------- CONTROLE MANUAL ----------
+        # ---------- CONTROLE MANUAL (==DEBUG==) ----------
+        
         if self.debug_manager.manual_mode:
             manual_decision = self.debug_manager.get_manual_decision()
             if manual_decision:            # há comando na fila, executa
                 return manual_decision
             return ""                      # sem comando, não faz nada
-        # ---------- CONTROLE MANUAL ----------
+        # ---------- CONTROLE MANUAL (==DEBUG==) ----------
         
         # Lógica automática original (decisão aleatória):
         n = random.randint(0,7)
 
-        # Log da decisão aleatória (DEBUG)
-        self.debug_manager.decision_explanation(n, 8)
+        # ==DEBUG==
+        self.debug_manager.decision_explanation(n, 8) # Log da explicação da decisão automática
 
         # Vira a direita
         # Cada ação executada possui o custo de -1 (andar, virar para a esquerda, direita, etc)
@@ -266,7 +266,8 @@ class GameAI():
         else:
             decision = ""
         
-        # Log da decisão automática
+        
+        # ==DEBUG==
         if decision:
             self.debug_manager.log_decision(decision)
         

@@ -5,7 +5,7 @@ import Socket.HandleClient
 from Socket.HandleClient import HandleClient
 from dto.PlayerInfo import PlayerInfo
 from dto.ScoreBoard import ScoreBoard
-from Debug.debug_bot import BotDebugManager  # Sistema de debug especializado
+from Debug.debug_bot import BotDebugManager  # ==DEBUG==
 import time
 import datetime
 import re
@@ -25,7 +25,9 @@ class Bot():
     timer1 = None           # Timer para execução periódica
     running = True          # Controle de execução do bot
     thread_interval = 0.1   # Intervalo do timer (em segundos) 
-    debug_manager = None    # Gerenciador de DEBUG especializado para Bot
+
+     # ==DEBUG==
+    debug_manager = None   
 
     # Listas e variáveis para armazenar informações do jogo
     playerList = {}           # Dicionário de jogadores
@@ -42,8 +44,8 @@ class Bot():
     # ==================== CONSTRUTOR ====================
     # Inicializa o bot, conecta ao servidor e configura os handlers
     def __init__(self):
-        # Inicializar sistema de debug especializado para Bot
-        self.debug_manager = BotDebugManager()
+        # ==DEBUG==
+        self.debug_manager = BotDebugManager() # Inicializar sistema de debug especializado para Bot
         
         self.client = HandleClient()
         self.gameAi = GameAI() # =======================================>>>>> INSTANCIA GAME AI
@@ -55,8 +57,9 @@ class Bot():
             time.sleep(5)
         self.timer1.start()
     
+    # ==DEBUG==
     # Método helper para usar o sistema de DEBUG especializado
-    def debug_print(self, message, category="INFO"):
+    def debug_print(self, message, category="INFO"): 
         if self.debug_manager:
             self.debug_manager.print_debug(message, category)
     
@@ -161,7 +164,7 @@ class Bot():
                             self.sscoreList += str(sb.score) + "\n"
                             self.sscoreList += "---\n"
                         self.scoreList.clear()
-                        self.debug_print("Placar atualizado", "SCOREBOARD")
+                        self.debug_print("Placar atualizado", "SCOREBOARD") # ==DEBUG==
                 ######################################################        
                 elif cmd[0] == "notification":
                     if len(cmd) > 1:
@@ -277,12 +280,12 @@ class Bot():
             self.DoDecision()
         elif self.msgSeconds >= 5000:
             self.debug_manager.log_timer_info(self.gameStatus, self.GetTime())
-            self.debug_print(f"Placar:\n{self.sscoreList}", "TIMER")
+            self.debug_print(f"Placar:\n{self.sscoreList}", "TIMER") # ==DEBUG==
             self.client.sendRequestScoreboard()
         if self.msgSeconds  >= 5000:
             if len(self.msg) > 0:
                 for s in self.msg:
-                    self.debug_print(s, "MESSAGE")
+                    self.debug_print(s, "MESSAGE") # ==DEBUG==
                 self.msg.clear()
             self.msgSeconds  = 0
         if self.running:
@@ -306,7 +309,7 @@ class Bot():
             self.debug_manager.log_connection_status(False)
             if self.running:
                 self.sayHello = 0
-                self.debug_print("Tentando reconectar...", "CONN")
+                self.debug_print("Tentando reconectar...", "CONN") # ==DEBUG==
                 while(not self.client.connect(self.host, self.port)):
-                    self.debug_print("Falha na conexão... Tentando conectar em 5 segundos...", "CONN")
+                    self.debug_print("Falha na conexão... Tentando conectar em 5 segundos...", "CONN") # ==DEBUG==
                     time.sleep(5)
