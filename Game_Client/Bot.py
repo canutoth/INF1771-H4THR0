@@ -5,7 +5,7 @@ import Socket.HandleClient
 from Socket.HandleClient import HandleClient
 from dto.PlayerInfo import PlayerInfo
 from dto.ScoreBoard import ScoreBoard
-from Debug.debug_bot import BotDebugManager  # ==DEBUG==
+from Debug.debug_bot import BotDebugManager  # DEBUG
 import time
 import datetime
 import re
@@ -25,9 +25,7 @@ class Bot():
     timer1 = None           # Timer para execução periódica
     running = True          # Controle de execução do bot
     thread_interval = 0.1   # Intervalo do timer (em segundos) 
-
-     # ==DEBUG==
-    debug_manager = None   
+    debug_manager = None    # DEBUG
 
     # Listas e variáveis para armazenar informações do jogo
     playerList = {}           # Dicionário de jogadores
