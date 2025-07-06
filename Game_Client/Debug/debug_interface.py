@@ -35,10 +35,11 @@ class DebugInterface:
 
         # Configuração dos botões principais (x, y, largura, altura, texto, ação)
         self.btns = [
-            (50, 50, 300, 40, "Debug Bot",        "bot_dbg"),
-            (50, 100,300, 40, "Filtro Repetições", "bot_filter"),
-            (50, 150,300, 40, "Debug IA",         "ai_dbg"),
-            (50, 200,300, 40, "Controle Manual",  "ai_manual"),
+            (50,  50, 300, 40, "Debug Bot",        "bot_dbg"),
+            (50, 100, 300, 40, "Filtro Repetições","bot_filter"),
+            (50, 150, 300, 40, "Debug IA",         "ai_dbg"),
+            (50, 200, 300, 40, "Controle Manual",  "ai_manual"),
+            (50, 250, 300, 40, "Raw Mode",         "bot_raw"),    
         ]
         
         # Configuração dos botões de controle manual
@@ -104,6 +105,7 @@ class DebugInterface:
             self.bot.filter_enabled,
             self.ai.debug_enabled,
             self.ai.manual_mode,
+            self.bot.raw_enabled, 
         ]
 
     # =========================================================================
@@ -165,6 +167,7 @@ class DebugInterface:
         elif act == "bot_filter": self.bot.toggle_filter()
         elif act == "ai_dbg":     self.ai.toggle_debug()
         elif act == "ai_manual":  self.ai.toggle_manual()
+        elif act == "bot_raw":    self.bot.toggle_raw()
 
     def _click(self, pos):
         x, y = pos

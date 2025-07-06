@@ -57,12 +57,6 @@ class Bot():
             time.sleep(5)
         self.timer1.start()
     
-    # ==DEBUG==
-    # Método helper para usar o sistema de DEBUG especializado
-    def debug_print(self, message, category="INFO"): 
-        if self.debug_manager:
-            self.debug_manager.print_debug(message, category)
-    
     # Converte string de cor para tupla RGB
     def convertFromString(self, c):
         p = re.split(',|]', c)
@@ -76,9 +70,7 @@ class Bot():
     # Recebe comandos do servidor e repassa para a GameAI ou atualiza o estado do bot
     def ReceiveCommand(self, cmd):
         if len(cmd) > 0:
-            try:
-                # Log do comando recebido usando método específico
-                self.debug_manager.log_game_command(cmd)
+            try:          
                 ######################################################        
                 if cmd[0] ==  "o":
                     if len(cmd) > 1:
@@ -93,14 +85,15 @@ class Bot():
                             else:
                                 o.append(cmd[1])
                             self.gameAi.GetObservations(o)  # =======================================>>>>> ENVIA OBSERVAÇÕES (geral, menos hit e damage)
-                            self.debug_manager.log_observation(o)
+                        self.debug_manager.log_observation(cmd) # DEBUG
                     else:
                         self.gameAi.GetObservationsClean()  # =======================================>>>>> LIMPA OBSERVAÇÕES
+                        self.debug_manager.log_observation(cmd) # DEBUG
                 ######################################################        
                 elif cmd[0] ==  "s":
                     if len(cmd) > 1:
                         self.gameAi.SetStatus(int(cmd[1]), int(cmd[2]), cmd[3], cmd[4], int(cmd[5]), int(cmd[6]))  # =======================================>>>>> ENVIA STATUS
-                        self.debug_manager.log_status_update(int(cmd[1]), int(cmd[2]), cmd[3], cmd[4], int(cmd[5]), int(cmd[6]))
+                        self.debug_manager.log_status(cmd) # DEBUG
                 ######################################################        
                 elif cmd[0] == "player":
                     if len(cmd) == 8:
@@ -123,20 +116,20 @@ class Bot():
                                 int(cmd[5]),
                                 int(cmd[6]),
                                 self.convertFromString(cmd[7]))
-                        self.debug_manager.log_player_update(cmd[1], cmd[2])
+                        self.debug_manager.log_player(cmd) # DEBUG
                 ######################################################        
                 elif cmd[0] == "g":
                     if len(cmd) == 3:
                         if self.gameStatus != cmd[1]:
                             self.playerList.clear()
                         if self.gameStatus != cmd[1]:
-                            self.debug_manager.log_game_status_change(cmd[1])
                             self.client.sendRequestUserStatus()
                             self.client.sendRequestObservation()
                         elif self.time > int(cmd[2]):
                             self.client.sendRequestUserStatus()
                         self.gameStatus = cmd[1]
                         self.time = int(cmd[2])
+                        self.debug_manager.log_game(cmd) # DEBUG    
                 ######################################################        
                 elif cmd[0] == "u":
                     if len(cmd) > 1:
@@ -164,35 +157,34 @@ class Bot():
                             self.sscoreList += str(sb.score) + "\n"
                             self.sscoreList += "---\n"
                         self.scoreList.clear()
-                        self.debug_print("Placar atualizado", "SCOREBOARD") # ==DEBUG==
                 ######################################################        
                 elif cmd[0] == "notification":
                     if len(cmd) > 1:
                         if len(self.msg) == 0:
                             self.msgSeconds = 0
                         self.msg.append(cmd[1])
-                        print(f"[NOTIFY] {cmd[1]}")
+                        self.debug_manager.log_notification(cmd) # DEBUG
                 ######################################################        
                 elif cmd[0] == "hello":
                     if len(cmd) > 1:
                         if len(self.msg) == 0:
                             self.msgSeconds = 0
                         self.msg.append(cmd[1] + " has entered the game!")
-                        self.debug_manager.log_player_update("", cmd[1], "join")
+                        self.debug_manager.log_player_event(cmd) # DEBUG
                 ######################################################        
                 elif cmd[0] == "goodbye":
                     if len(cmd) > 1:
                         if len(self.msg) == 0:
                             self.msgSeconds = 0
                         self.msg.append(cmd[1] + " has left the game!")
-                        self.debug_manager.log_player_update("", cmd[1], "leave")
+                        self.debug_manager.log_player_event(cmd) # DEBUG
                 ######################################################        
                 elif cmd[0] == "changename":
                     if len(cmd) > 1:
                         if len(self.msg) == 0:
                             self.msgSeconds = 0
                         self.msg.append(cmd[1] + " is now known as " + cmd[2] + ".")
-                        self.debug_manager.log_player_update("", f"{cmd[1]} → {cmd[2]}", "rename")
+                        self.debug_manager.log_player_event(cmd) # DEBUG
                 ######################################################        
                 elif cmd[0] == "h":
                     if len(cmd) > 1:
@@ -200,7 +192,7 @@ class Bot():
                         o.append("hit")
                         self.gameAi.GetObservations(o) # =======================================>>>>> ENVIA OBSERVAÇÕES (BOT DEU DANO EM ALGUÉM)
                         self.msg.append("you hit " + cmd[1])
-                        self.debug_manager.log_combat("hit", cmd[1])
+                        self.debug_manager.log_combat(cmd) # DEBUG
                 ######################################################        
                 elif cmd[0] == "d":
                     if len(cmd) > 1:
@@ -208,7 +200,8 @@ class Bot():
                         o.append("damage")
                         self.gameAi.GetObservations(o) # =======================================>>>>> ENVIA OBSERVAÇÕES (BOT TOMOU DANO)
                         self.msg.append(cmd[1] + " hit you")
-                        self.debug_manager.log_combat("damage", cmd[1])
+                        self.debug_manager.log_combat(cmd) # DEBUG
+                ######################################################
             except Exception as ex:
                 self.debug_manager.log_error(type(ex).__name__, str(ex))
 
@@ -223,8 +216,7 @@ class Bot():
     
     # Manda decisão ao servidor
     def sendDecision(self, decision):
-        # Log da decisão usando método específico
-        self.debug_manager.log_decision(decision)
+        self.debug_manager.log_decision(decision) # DEBUG
 
         # d sendTurnRight(); – virar a direita 90º
         if decision == "virar_direita":
@@ -268,26 +260,32 @@ class Bot():
 
     # Função chamada periodicamente pelo timer para atualizar o status do jogo, processar mensagens e tomar decisões
     def timer1_Tick(self):
-        if self.client.connected:
-            if self.sayHello == 0:
-                self.sayHello = 1
-                self.client.sendName(self.name)
-                if hasattr(self, 'botcolor'):
-                    self.client.sendRGB(self.botcolor[0],self.botcolor[1],self.botcolor[2]) 
+        # Configuração inicial de conexão
+        if self.client.connected and self.sayHello == 0:
+            self.sayHello = 1
+            self.client.sendName(self.name)
+            if hasattr(self, 'botcolor'):
+                self.client.sendRGB(self.botcolor[0], self.botcolor[1], self.botcolor[2])
+        
+        # Atualiza contadores e solicita status
         self.msgSeconds += self.timer1.interval * 1000
         self.client.sendRequestGameStatus()
+
+        # Logs, scoreboard e timer periódicos (5 segundos)
+        should_reset_timer = self.msgSeconds >= 5000
+        if should_reset_timer:
+            self.debug_manager.log_timer_info(self.gameStatus, self.GetTime()) # DEBUG
+            self.debug_manager.log_full_scoreboard(self.sscoreList if self.sscoreList.strip() else '') # DEBUG
+            self.client.sendRequestScoreboard()
+            if len(self.msg) > 0:
+                self.msg.clear()
+            self.msgSeconds = 0
+            
+        # Decisão da IA (durante jogo)
         if self.gameStatus == "Game":
             self.DoDecision()
-        elif self.msgSeconds >= 5000:
-            self.debug_manager.log_timer_info(self.gameStatus, self.GetTime())
-            self.debug_print(f"Placar:\n{self.sscoreList}", "TIMER") # ==DEBUG==
-            self.client.sendRequestScoreboard()
-        if self.msgSeconds  >= 5000:
-            if len(self.msg) > 0:
-                for s in self.msg:
-                    self.debug_print(s, "MESSAGE") # ==DEBUG==
-                self.msg.clear()
-            self.msgSeconds  = 0
+
+        # Engatilha próximo timer
         if self.running:
             self.timer1 = Timer(self.thread_interval, self.timer1_Tick)
             self.timer1.start()
@@ -296,7 +294,7 @@ class Bot():
     # Handler para mudanças de status da conexão
     def SocketStatusChange(self):
         if self.client.connected:
-            self.debug_manager.log_connection_status(True, self.host, self.port)
+            self.debug_manager.log_connection_status(True, self.host, self.port) # DEBUG
             if self.sayHello == 0:
                 self.sayHello = 1
                 self.client.sendName(self.name)
@@ -306,10 +304,10 @@ class Bot():
             self.client.sendRequestUserStatus()
             self.client.sendRequestObservation()
         else:
-            self.debug_manager.log_connection_status(False)
+            self.debug_manager.log_connection_status(False) # DEBUG
             if self.running:
                 self.sayHello = 0
-                self.debug_print("Tentando reconectar...", "CONN") # ==DEBUG==
+                self.debug_manager.log_reconnecting() # DEBUG
                 while(not self.client.connect(self.host, self.port)):
-                    self.debug_print("Falha na conexão... Tentando conectar em 5 segundos...", "CONN") # ==DEBUG==
+                    self.debug_manager.log_reconnect_failed() # DEBUG
                     time.sleep(5)

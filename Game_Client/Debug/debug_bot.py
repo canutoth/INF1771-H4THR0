@@ -4,7 +4,9 @@ class BotDebugManager:
     def __init__(self):
         self.debug_enabled = False
         self.filter_enabled = True
-        self.seen = {}           
+        self.raw_enabled = False
+        self.last_message = {}
+        self.disabled = {}         
 
     # -------- CONTROLE --------
     def toggle_debug(self):
@@ -13,60 +15,130 @@ class BotDebugManager:
     def toggle_filter(self):
         self.filter_enabled = not self.filter_enabled
         if self.filter_enabled:
-            self.seen.clear()
+            self.last_message.clear()
+
+    def toggle_raw(self):
+        self.raw_enabled = not self.raw_enabled
 
     # -------- FILTRO --------
     def should_show_message(self, message, category):
-        if category == "OBS" and ("['none']" in message or "observations: none" in message.lower()):
-            return False
-        if not self.debug_enabled:
-            return False
-        if not self.filter_enabled:        
+       
+        # 1) se o filtro estiver *desativado*, mostra sempre
+        if not self.filter_enabled:
             return True
-        if message in self.seen.get(category, set()):
+        
+        # 2) categoria silenciada?
+        if category in self.disabled:
             return False
-        self.seen.setdefault(category, set()).add(message)
+        
+         # 3) se for igual à última mensagem dessa categoria, suprime
+        last = self.last_message.get(category)
+        if last == message:
+            return False
+        
+        # 4) caso contrário, registra e mostra
+        self.last_message[category] = message
         return True
 
-    def print_debug(self, message, category="INFO"):
-        if self.should_show_message(message, category):
-            print(f"# {message}")
-
-    
     # ---------- SAÍDA ----------
-    def print_debug(self, message, category="INFO"):
+    def print_debug(self, message, category, cmd):
+
+        if not self.debug_enabled:
+            return
+        
+        if self.raw_enabled == True:
+            print(f"[RAW][{category}] -> {cmd}")
+
         if self.should_show_message(message, category):
-            print(f"# {message}")
+            print(f"[{category}] -> {message}")
 
     # ---------- LOGS ----------
+
+    def log_observation(self, cmd):
+        obs_list = [] if len(cmd) < 2 or cmd[1].strip() == "" else cmd[1].split(',')
+        obs_str  = ", ".join(obs_list) if obs_list else "nenhuma"
+        self.print_debug(f"Observações recebidas: {obs_str}", "OBS", cmd)
+
+    def log_player(self, cmd):
+        pid, name = cmd[1], cmd[2]
+        self.print_debug(f"Atualização de player #{pid} → {name}", "PLAYER", cmd)
+
+    def log_game(self, cmd):
+        status, secs = cmd[1], int(cmd[2])
+        mm, ss = divmod(secs, 60)
+        self.print_debug(f"Estado do jogo: {status} (t={mm:02d}:{ss:02d})", "GAME", cmd)
+
+    def log_notification(self, cmd):
+        self.print_debug(f"Servidor: {cmd[1]}", "NOTIFICATION", cmd)
+
+    def log_message(self, cmd):
+        self.print_debug(cmd[1], "MESSAGE", cmd)
+
+    def log_player_event(self, cmd):
+        if cmd[0] == "hello":
+            self.print_debug(f"{cmd[1]} entrou no jogo", "PLAYER", cmd)
+        elif cmd[0] == "goodbye":
+            self.print_debug(f"{cmd[1]} saiu do jogo", "PLAYER", cmd)
+        elif cmd[0] == "changename":
+            self.print_debug(f"{cmd[1]} agora é {cmd[2]}", "PLAYER", cmd)
+
+    def log_combat(self, cmd):
+        if cmd[0] == "h":
+            self.print_debug(f"Atingiu {cmd[1]}", "COMBAT", cmd)
+        elif cmd[0] == "d":
+            self.print_debug(f"Recebeu dano de {cmd[1]}", "COMBAT", cmd)
+
+    def log_error(self, exc):
+        self.print_debug(f"{type(exc).__name__}: {exc}", "ERROR", exc)
+
     def log_decision(self, decision):
-        if decision:
-            self.print_debug(f"Decisão: {decision}", "DECISION")
+        cmd = ["decision", decision]
+        msg = f"Decisão: executar '{decision}'"
+        self.print_debug(msg, "DECISION", cmd)
 
-    def log_status_update(self, x, y, direction, state, score, energy):
-        self.print_debug(f"Status: pos=({x},{y}) dir={direction} state={state} score={score} energy={energy}", "STATUS")
+    def log_timer_info(self, status, time_str):
+        self.print_debug(
+            f"Timer tick -> estado={status}, tempo={time_str}",
+            "TIMER",
+            (status, time_str)
+        )
 
-    def log_game_command(self, command):
-        self.print_debug(f"Comando: {command}", "SERVER")
+    def log_full_scoreboard(self, board_str):
+        # Espera uma string formatada como no sscoreList: nome, status, energia, score, ---\n
+        lines = [l for l in board_str.strip().split('\n') if l and l != '---']
+        players = []
+        for i in range(0, len(lines), 4):
+            try:
+                name = lines[i]
+                status = lines[i+1]
+                energy = lines[i+2]
+                score = lines[i+3]
+                players.append(f"{name} | {status} | E:{energy} | S:{score}")
+            except Exception:
+                continue
+        if players:
+            msg = "SCOREBOARD (nome | status | E:energia | S:score):\n" + "\n".join(players)
+        else:
+            msg = "SCOREBOARD vazio."
+        self.print_debug(msg, "SCOREBOARD", board_str)
+
+    def log_chat_line(self, text):
+        self.print_debug(text, "MESSAGE", text)
 
     def log_connection_status(self, connected, host=None, port=None):
-        msg = f"Conectado: {host}:{port}" if connected else "Desconectado"
-        self.print_debug(msg, "CONN")
+ 
+        if connected:
+            msg = f"Conectado ao servidor em {host}:{port}"
+            cmd = ["connection", "connected", host, str(port)]
+        else:
+            msg = "Desconectado do servidor"
+            cmd = ["connection", "disconnected"]
 
-    def log_timer_info(self, game_status, time_str):
-        self.print_debug(f"Timer – status={game_status} time={time_str}", "TIMER")
+        self.print_debug(msg, "CONN", cmd)
 
-    def log_player_update(self, pid, name, action="update"):
-        self.print_debug(f"Player {pid} {action}: {name}", "PLAYER")
+    def log_reconnecting(self):
+        self.print_debug("Iniciando tentativa de reconexão...", "CONNEC", "Iniciando tentativa de reconexão...")
 
-    def log_game_status_change(self, new_status):
-        self.print_debug(f"Game status → {new_status}", "GAME")
-
-    def log_observation(self, obs):
-        self.print_debug(f"Observations: {obs}", "OBS")
-
-    def log_combat(self, event_type, target):
-        self.print_debug(f"Combat {event_type} with {target}", "COMBAT")
-
-    def log_error(self, err_type, msg):
-        self.print_debug(f"ERROR {err_type}: {msg}", "ERROR")
+    def log_reconnect_failed(self):
+        self.print_debug("Falha na conexão, tentando de novo em 5s...", "CONNEC", "Falha na conexão, tentando de novo em 5s...")
+    
