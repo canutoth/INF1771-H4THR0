@@ -42,9 +42,7 @@ class Bot():
     # ==================== CONSTRUTOR ====================
     # Inicializa o bot, conecta ao servidor e configura os handlers
     def __init__(self):
-        # ==DEBUG==
-        self.debug_manager = BotDebugManager() # Inicializar sistema de debug especializado para Bot
-        
+        self.debug_manager = BotDebugManager() # DEBUG   
         self.client = HandleClient()
         self.gameAi = GameAI() # =======================================>>>>> INSTANCIA GAME AI
         self.timer1 = Timer(self.thread_interval, self.timer1_Tick)

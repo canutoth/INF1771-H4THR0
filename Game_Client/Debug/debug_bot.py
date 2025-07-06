@@ -98,7 +98,7 @@ class BotDebugManager:
 
     def log_timer_info(self, status, time_str):
         self.print_debug(
-            f"Timer tick -> estado={status}, tempo={time_str}",
+            f"estado={status}, tempo={time_str}",
             "TIMER",
             (status, time_str)
         )
