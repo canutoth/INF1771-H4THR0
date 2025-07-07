@@ -1,11 +1,11 @@
-﻿# IMPORTS
-from threading import Timer
+﻿from threading import Timer
 from GameAI import GameAI
 import Socket.HandleClient
 from Socket.HandleClient import HandleClient
 from dto.PlayerInfo import PlayerInfo
 from dto.ScoreBoard import ScoreBoard
 from Debug.debug_bot import BotDebugManager  # DEBUG
+from ScoreboardKnowledge import ScoreboardKnowledge  # SCOREBOARD
 import time
 import datetime
 import re
@@ -14,10 +14,10 @@ import re
 # RECEBE INFORMAÇÕES DO SERVIDOR, TRADUZ PRA GAME AI PROCESSAR E RETORNA DECISÕES DA GAME AI AO SERVIDOR 
 class Bot():
     # ==================== CONFIGURAÇÕES DO BOT ====================
-    botcolor = (90, 50, 168)       # Cor do bot (RGB)
-    name = "h4thr0_example"         # Nome do bot
-    host = "atari.icad.puc-rio.br" # Endereço do servidor
-    port = 8888                    # Porta do servidor
+    botcolor = (149, 0, 255)        # Cor do bot (RGB)
+    name = "h4thr0_ex2"                # Nome do bot
+    host = "atari.icad.puc-rio.br"  # Endereço do servidor
+    port = 8888                     # Porta do servidor
 
     # ==================== VARIÁVEIS DE ESTADO ====================
     client = None           # Cliente de conexão com o servidor
@@ -26,6 +26,7 @@ class Bot():
     running = True          # Controle de execução do bot
     thread_interval = 0.1   # Intervalo do timer (em segundos) 
     debug_manager = None    # DEBUG
+    scoreboard_knowledge = None  # SCOREBOARD
 
     # Listas e variáveis para armazenar informações do jogo
     playerList = {}           # Dicionário de jogadores
@@ -43,8 +44,9 @@ class Bot():
     # Inicializa o bot, conecta ao servidor e configura os handlers
     def __init__(self):
         self.debug_manager = BotDebugManager() # DEBUG   
+        self.scoreboard_knowledge = ScoreboardKnowledge() # SCOREBOARD
         self.client = HandleClient()
-        self.gameAi = GameAI() # =======================================>>>>> INSTANCIA GAME AI
+        self.gameAi = GameAI(self.scoreboard_knowledge) # =======================================>>>>> INSTANCIA GAME AI
         self.timer1 = Timer(self.thread_interval, self.timer1_Tick)
         self.client.append_cmd_handler(self.ReceiveCommand)
         self.client.append_chg_handler(self.SocketStatusChange)
@@ -132,23 +134,30 @@ class Bot():
                     if len(cmd) > 1:
                         for i in range(1, len(cmd)):
                             a = cmd[i].split('#')
+                            player_id = None
+                            for pid, pinfo in self.playerList.items():
+                                if hasattr(pinfo, 'name') and pinfo.name == a[0]:
+                                    player_id = pid
+                                    break
                             if len(a) == 4:
-                                self.scoreList.append(
-                                    ScoreBoard(
+                                sb = ScoreBoard(
                                     a[0],
                                     (a[1] == "connected"),
                                     int(a[2]),
-                                    int(a[3]), (0, 0, 0)))
+                                    int(a[3]), (0, 0, 0))
+                                if player_id is not None:
+                                    setattr(sb, 'id', player_id)
+                                self.scoreList.append(sb)
                             elif len(a) == 5:
-                                self.scoreList.append(
-                                    ScoreBoard(
+                                sb = ScoreBoard(
                                     a[0],
                                     (a[1] == "connected"),
                                     int(a[2]),
-                                    int(a[3]), self.convertFromString(a[4])))
-                                
-                        
-                        
+                                    int(a[3]), self.convertFromString(a[4]))
+                                if player_id is not None:
+                                    setattr(sb, 'id', player_id)
+                                self.scoreList.append(sb)
+                        self.scoreboard_knowledge.update_scoreboard(self.scoreList) # SCOREBOARD
                         self.sscoreList = ""
                         for sb in self.scoreList:
                             self.sscoreList += sb.name + "\n"
@@ -205,6 +214,7 @@ class Bot():
             except Exception as ex:
                 self.debug_manager.log_error(type(ex).__name__, str(ex))
 
+                
     # Manda mensagem para outros usuários
     def sendMsg(self, msg):
         if len(msg.strip()) > 0:
@@ -271,8 +281,8 @@ class Bot():
         self.msgSeconds += self.timer1.interval * 1000
         self.client.sendRequestGameStatus()
 
-        # Logs, scoreboard e timer periódicos (5 segundos)
-        should_reset_timer = self.msgSeconds >= 5000
+        # Logs, scoreboard e timer periódicos (0.1 segundos)
+        should_reset_timer = self.msgSeconds >= 100
         if should_reset_timer:
             self.debug_manager.log_timer_info(self.gameStatus, self.GetTime()) # DEBUG
             self.debug_manager.log_full_scoreboard(self.sscoreList if self.sscoreList.strip() else '') # DEBUG

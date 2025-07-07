@@ -1,8 +1,7 @@
-# MapKnowledge.py
-# Mantém conhecimento incremental sobre o labirinto (59 x 34)
-
 from typing import List, Tuple
 
+# CLASSE DO CONHECIMENTO DE MAPA
+# GUARDA E ATUALIZA INFORMAÇÕES DO LABIRINTO
 class MapKnowledge:
     """Guarda e atualiza informações do labirinto.
     Cada célula contém:
@@ -31,7 +30,7 @@ class MapKnowledge:
     }
 
     # Vetores de deslocamento para pegar a célula à frente
-    DIR_VEC = {
+    DIRECTION_VECTORS = {
         "north": ( 0, -1),
         "east":  ( 1,  0),
         "south": ( 0,  1),
@@ -55,7 +54,10 @@ class MapKnowledge:
         self.pseudo_pocos: List[set] = []  # Lista de conjuntos de possíveis poços
         self.pseudo_teleporters: List[set] = []  # Lista de conjuntos de possíveis teleporters
 
-    # --------------- API principal ---------------
+    # ------------------------------ [API PRINCIPAL] ------------------------------
+    #    ------------------------------ [INÍCIO] ------------------------------
+    # ------------------------------ [API PRINCIPAL] ------------------------------
+
     def update(self, x: int, y: int, direction: str, observations: List[str]) -> None:
         if not self._inside(x, y):
             return
@@ -70,7 +72,7 @@ class MapKnowledge:
         self.last_observations = observations[:]
         cell = self.map[x][y]
 
-        # -------- marca passagem pelo bloco atual --------
+        # Marca passagem pelo bloco atual 
         cell[self.IDX_VISITS] += 1
         if cell[self.IDX_SAFE] == 0:
             cell[self.IDX_SAFE] = 1
@@ -81,7 +83,7 @@ class MapKnowledge:
         has_breeze = False
         has_flash  = False
 
-        # -------- Processa cada observação individual --------
+        # Processa cada observação individual 
         for obs in observations:
             # BLOQUEIO
             if obs == "blocked":
@@ -121,11 +123,19 @@ class MapKnowledge:
                 self._add_pseudo_teleporters(x, y) # adiciona possíveis teleporters
                 self._update_inference_system(x, y, "teleporter") # atualiza inferência apenas para teleporter
 
-        # -------- se NÃO houver breeze nem flash, vizinhos são seguros --------
+        # Se NÃO houver breeze nem flash, vizinhos são seguros 
         if not has_breeze and not has_flash:
             self._mark_adjacent_safe(x, y)
 
-    # --------------- Sistema de Inferência ---------------
+    # ------------------------------ [API PRINCIPAL] ------------------------------
+    #      ------------------------------ [FIM] ------------------------------
+    # ------------------------------ [API PRINCIPAL] ------------------------------
+
+
+
+    # ------------------------------ [SISTEMA DE INFERÊNCIA] ------------------------------
+    #        ------------------------------ [INÍCIO] ------------------------------
+    # ------------------------------ [SISTEMA DE INFERÊNCIA] ------------------------------
     
     # Adiciona um conjunto de possíveis posições de ameaças baseado na percepção
     def _add_pseudo_positions(self, x: int, y: int, target_list: List[set]) -> None:
@@ -239,8 +249,15 @@ class MapKnowledge:
             for pseudo_set in target_list:
                 pseudo_set -= adjacent_to_threat
     
+    # ------------------------------ [SISTEMA DE INFERÊNCIA] ------------------------------
+    #        ------------------------------ [FIM] ------------------------------
+    # ------------------------------ [SISTEMA DE INFERÊNCIA] ------------------------------
+
+
     
-    # --------------- Métodos auxiliares internos ---------------
+    # ------------------------------ [MÉTODOS AUXILIARES INTERNOS] ------------------------------
+    #           ------------------------------ [INÍCIO] ------------------------------
+    # ------------------------------ [MÉTODOS AUXILIARES INTERNOS] ------------------------------
 
     # Verifica se as coordenadas estão dentro dos limites do mapa (true/false)
     def _inside(self, x: int, y: int) -> bool:
@@ -266,7 +283,7 @@ class MapKnowledge:
 
     # Retorna a célula à frente do agente
     def _front(self, x: int, y: int, direction: str) -> Tuple[int, int]:
-        dx, dy = self.DIR_VEC.get(direction.lower(), (0, 0))
+        dx, dy = self.DIRECTION_VECTORS.get(direction.lower(), (0, 0))
         return x + dx, y + dy
 
     # Marca as células adjacentes com a percepção dada
@@ -289,7 +306,37 @@ class MapKnowledge:
             if cell[self.IDX_PERCEPT] in (self.PERCEPT["poço"], self.PERCEPT["teleporter"]):
                 cell[self.IDX_PERCEPT] = 0
 
-    #--------------- [DEBUG] ---------------
+    # ------------------------------ [MÉTODOS AUXILIARES INTERNOS] ------------------------------
+    #           ------------------------------ [FIM] ------------------------------
+    # ------------------------------ [MÉTODOS AUXILIARES INTERNOS] ------------------------------
+
+
+
+    # ------------------------------ [MÉTODOS AUXILIARES EXTERNOS] ------------------------------
+    #           ------------------------------ [INÍCIO] ------------------------------
+    # ------------------------------ [MÉTODOS AUXILIARES EXTERNOS] ------------------------------
+
+    # Retorna o mapa de conhecimento completo com 1s (andável) e 0s (não andável), para A*
+    def get_safe_map(self) -> List[List[int]]:
+        safe_map = []
+        for x in range(self.WIDTH):
+            column = []
+            for y in range(self.HEIGHT):
+                cell = self.map[x][y]
+                is_passable = (cell[self.IDX_SAFE] == 1 and cell[self.IDX_WALK] == 1) # Seguro e andável
+                column.append(1 if is_passable else 0)
+            safe_map.append(column)
+        return safe_map
+
+    # ------------------------------ [MÉTODOS AUXILIARES EXTERNOS] ------------------------------
+    #           ------------------------------ [FIM] ------------------------------
+    # ------------------------------ [MÉTODOS AUXILIARES EXTERNOS] ------------------------------
+
+
+
+    # ------------------------------ [DEBUG] ------------------------------
+    #  ----------------------------- [INÍCIO] -----------------------------
+    # ------------------------------ [DEBUG] ------------------------------
 
     # Ativa ou desativa o print automático do mapa
     def set_auto_print(self, enabled: bool) -> None:
@@ -405,3 +452,7 @@ class MapKnowledge:
                 line += colors[color] + ch + colors['reset']
             print(line)
 
+
+    # ------------------------------ [DEBUG] ------------------------------
+    # ------------------------------- [FIM] -----------------------------
+    # ------------------------------ [DEBUG] ------------------------------
