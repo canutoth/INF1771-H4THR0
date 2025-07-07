@@ -125,6 +125,7 @@ class Bot():
                             self.client.sendRequestUserStatus()
                         self.gameStatus = cmd[1]
                         self.time = int(cmd[2])
+                        self.gameAi.SetGameTime(self.time)  # Passa o tempo para a GameAI
                         self.debug_manager.log_game(cmd) # DEBUG    
                 ######################################################        
                 elif cmd[0] == "u":
@@ -145,6 +146,9 @@ class Bot():
                                     (a[1] == "connected"),
                                     int(a[2]),
                                     int(a[3]), self.convertFromString(a[4])))
+                                
+                        
+                        
                         self.sscoreList = ""
                         for sb in self.scoreList:
                             self.sscoreList += sb.name + "\n"

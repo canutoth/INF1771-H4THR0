@@ -3,12 +3,9 @@ from Map.Position import Position
 from enum import Enum
 from typing import List, Dict
 from MapKnowledge import MapKnowledge               #MAPA
-
 from Debug.debug_game_ai import GameAIDebugManager  # ==DEBUG==
-from maquina_estados import ExplorationDecision, AttackDecision, SurvivalDecision
-    
+from Game_Client.StateMachine import ExplorationDecision, AttackDecision, SurvivalDecision, ItsAboutTimeDecision  
 from typing import List
-
 from Debug.debug_game_ai import GameAIDebugManager  #DEBUG
 
 # CLASSE PRINCIPAL DA GAME AI
@@ -21,6 +18,7 @@ class GameAI():
     dir = "north"
     score = 0
     energy = 0
+    game_time = 0  # Tempo de jogo em segundos
     
     map_knowledge = None # MAPA
     debug_manager = None  # DEBUG
@@ -49,7 +47,12 @@ class GameAI():
         self.score = score
         self.energy = energy
         self.debug_manager.log_status(x, y, dir, state, score, energy) #DEBUG
-        
+    
+    # Método para atualizar o tempo de jogo
+    def SetGameTime(self, time: int):
+        self.game_time = time
+    
+    
     # Retorna lista de posições adjacentes observáveis (cima, baixo, esquerda, direita) em relação à posição atual do jogador 
     # Não recebe nada de posição, usa o conhecimeto prévio da posição atual do jogador para retornar as posições adjacentes
     def GetCurrentObservableAdjacentPositions(self) -> List[Position]:
@@ -210,11 +213,13 @@ class GameAI():
             return ""                      # sem comando, não faz nada
         # ---------- CONTROLE MANUAL (DEBUG) ----------
 
-        # Máquina de estados
-        if self.energy < 30:
+        if self.game_time >= 285: 
+            return ItsAboutTimeDecision()
+        elif self.energy < 30:
             self.state = "sobrevivencia"
         else:
             self.state = "exploracao"
+
 
         if self.state == "sobrevivencia":
             return SurvivalDecision()

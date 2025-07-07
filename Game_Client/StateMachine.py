@@ -39,7 +39,9 @@ def ItsAboutTimeDecision(): #ultimos X seg... sipa ficar parado seja bom
     #se distancia razoavel
         #vou ate ouro mais proximo
     #fico parado para nao gastar energia
-    pass
+    decision = "virar_direita" #placeholder
+    print(decision)
+    return decision
 
 def aleatorio(): 
     n = random.randint(0,7)
