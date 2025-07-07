@@ -209,10 +209,6 @@ class GameAI():
                 return manual_decision
             return ""                      # sem comando, não faz nada
         # ---------- CONTROLE MANUAL (DEBUG) ----------
-    
-
-        
-
 
         # Máquina de estados
         if self.energy < 30:

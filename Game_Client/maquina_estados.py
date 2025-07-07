@@ -1,23 +1,47 @@
 import random
 def SurvivalDecision(): #pouca energia
+    #se jah achei uma pocao 
+        #a* para pocao
+        #fico parado esperando ela respawnar
+        #se fui atingido enquanto espero
+            #se tiver outra pocao e pocao num range plausivel
+                #a* para outra pocao
+            #dou uma voltinha rs
+    #se nao volto para exploration mode neh, fazer oq
     pass
 
 def ExplorationDecision(): #normal
+    #perg do tempo de respawn
     pass
 
 def AttackDecision(): #soh qnd tiverem mais 2 outros bots
+    #se tiver na minha frente (linha reta)
+        #atiro 
+        #se oponente se afastar
+            #ando frente
+    #se tiver a um de manhattan
+        #chuto uma direcao (safe) para ir e tento me alinhar com ele
     pass
 
 def CollectDecision(): #a* p voltar p ouro mais prox ou coleta mais vantajosa
+    #rodo a* para o ouro que der mais recompensa
     pass
 
 def RunawayDecision(): #atiraram em mim
+    #se nao tiver ninguem na frente
+        #ando frente
+    #se tiver alguem na frente
+        #ando ré
     pass
 
 def ItsAboutTimeDecision(): #ultimos X seg... sipa ficar parado seja bom
+    #rodo a* para ouro mais proximo
+    #se distancia razoavel
+        #vou ate ouro mais proximo
+    #fico parado para nao gastar energia
     pass
 
-def aleatorio():
+def aleatorio(): 
     n = random.randint(0,7)
     # Vira a direita
     # Cada ação executada possui o custo de -1 (andar, virar para a esquerda, direita, etc)
