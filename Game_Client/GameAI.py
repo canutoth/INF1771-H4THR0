@@ -49,7 +49,7 @@ class GameAI():
         self.score = score
         self.energy = energy
         self.debug_manager.log_status(x, y, dir, state, score, energy) #DEBUG
-
+        
     # Retorna lista de posições adjacentes observáveis (cima, baixo, esquerda, direita) em relação à posição atual do jogador 
     # Não recebe nada de posição, usa o conhecimeto prévio da posição atual do jogador para retornar as posições adjacentes
     def GetCurrentObservableAdjacentPositions(self) -> List[Position]:
@@ -122,9 +122,9 @@ class GameAI():
         # coordenadas atuais do player
     def GetObservations(self, o):
 
-        self.debug_manager.log_observation(o) # DEBUG
+        self.debug_manager.log_observation(o) #DEBUG
         self.map_knowledge.update(self.player.x, self.player.y, self.dir, o) # MAPA
-    
+        
         for s in o:
             # Ao caminhar contra uma parede o agente sente um impacto. As laterais do labirinto são paredes, o mapa também pode conter outras posições bloqueadas
             # blocked: último movimento não foi feito. Destino está bloqueado
@@ -182,7 +182,7 @@ class GameAI():
         # se nao apagarmos, as novas se misturam com as anteriores
     def GetObservationsClean(self):
        
-        self.debug_manager.log_observation(['nenhum']) # DEBUG
+        self.debug_manager.log_observation(['nenhum']) #DEBUG
         self.map_knowledge.update(self.player.x, self.player.y, self.dir, ['nenhum']) # MAPA
         pass
 
@@ -225,14 +225,4 @@ class GameAI():
         else:
             return ""
 
-
-
-        
-        
-        
-        # DEBUG
-        if decision:
-            self.debug_manager.log_decision(decision)
-        
-        return decision
 
