@@ -11,12 +11,13 @@ class MapKnowledge:
         [2] percepção:    0-6 conforme tabela
         [3] n_passagens:  contador de passagens pelo bloco
         [4] qtd_potion:   energia recuperada pela poção (0 se indef.)
+        [5] certeza:      0 (desconhecido), 1 (certeza absoluta)
     """
     #Tamanho do mapa, vai de (0,0) [esquerda superior] a (58,33) [direita inferior]
     WIDTH, HEIGHT = 59, 34
 
     # Índices auxiliares
-    IDX_SAFE, IDX_WALK, IDX_PERCEPT, IDX_VISITS, IDX_PWR = range(5)
+    IDX_SAFE, IDX_WALK, IDX_PERCEPT, IDX_VISITS, IDX_PWR, IDX_CERTAIN = range(6)
 
     # Percepções   
     PERCEPT = {
@@ -38,7 +39,7 @@ class MapKnowledge:
     }
 
     def __init__(self):
-        default = [0, 0, 0, 0, 0, 0]  # valores iniciais
+        default = [0, 0, 0, 0, 0, 0]  # valores iniciais [safe, walk, percept, visits, pwr, certain]
         self.map: List[List[List[int]]] = [
             [default[:] for _ in range(self.HEIGHT)] for _ in range(self.WIDTH)
         ]
@@ -48,6 +49,10 @@ class MapKnowledge:
         self.last_x = None
         self.last_y = None
         self.last_direction = None
+        
+        # Sistema de inferência de poços
+        self.pseudo_pocos: List[set] = []  # Lista de conjuntos de possíveis poços
+        self.pseudo_teleporters: List[set] = []  # Lista de conjuntos de possíveis teleporters
 
     # --------------- API principal ---------------
     def update(self, x: int, y: int, direction: str, observations: List[str]) -> None:
@@ -61,7 +66,6 @@ class MapKnowledge:
         self.last_x = x
         self.last_y = y
         self.last_direction = direction
-
         cell = self.map[x][y]
 
         # -------- marca passagem pelo bloco atual --------
@@ -87,7 +91,7 @@ class MapKnowledge:
                     tgt[self.IDX_PERCEPT]  = self.PERCEPT["bloqueado"]
 
             # ITENS
-            elif obs.startswith("blueLight"):
+            elif obs.startswith("blueLight"): 
                 if "#" in obs:
                     typ = obs.split("#", 1)[1]
                     if typ == "1":
@@ -106,21 +110,157 @@ class MapKnowledge:
             elif obs == "breeze":
                 has_breeze = True
                 self._mark_adjacent(x, y, self.PERCEPT["poço"])
+                self._add_pseudo_pits(x, y) # adiciona possíveis poços
+                self._update_inference_system(x, y, "poço") # atualiza inferência apenas para poço
+
             elif obs == "flash":
                 has_flash = True
                 self._mark_adjacent(x, y, self.PERCEPT["teleporter"])
+                self._add_pseudo_teleporters(x, y) # adiciona possíveis teleporters
+                self._update_inference_system(x, y, "teleporter") # atualiza inferência apenas para teleporter
 
         # -------- se NÃO houver breeze nem flash, vizinhos são seguros --------
         if not has_breeze and not has_flash:
             self._mark_adjacent_safe(x, y)
 
-
-
+    # --------------- Sistema de Inferência ---------------
+    
+    # Adiciona um conjunto de possíveis posições de ameaças baseado na percepção
+    def _add_pseudo_positions(self, x: int, y: int, target_list: List[set]) -> None:
+        possible_positions = set()
+        
+        for nx, ny in self._get_adjacent_positions(x, y):
+            # Só adiciona se não for seguro
+            if self.map[nx][ny][self.IDX_SAFE] != 1:
+                possible_positions.add((nx, ny))
+        
+        target_list.append(possible_positions)
+    
+    # Adiciona um conjunto de possíveis poços baseado na brisa sentida
+    def _add_pseudo_pits(self, x: int, y: int) -> None:
+        self._add_pseudo_positions(x, y, self.pseudo_pocos)
+    
+    # Adiciona um conjunto de possíveis teleporters baseado no flash sentido
+    def _add_pseudo_teleporters(self, x: int, y: int) -> None:
+        self._add_pseudo_positions(x, y, self.pseudo_teleporters)
+    
+    # Atualiza o sistema de inferência removendo células seguras e aplicando regras
+    def _update_inference_system(self, player_x: int, player_y: int, perception_type: str) -> None:
+        
+        self._remove_safe_from_pseudo_lists(player_x, player_y, perception_type) # Remove células seguras das adjacências do jogador apenas para o tipo específico
+        self._apply_non_adjacent_rule(player_x, player_y, perception_type) # Aplica regra: ameaças não são adjacentes apenas nos arredores do jogador
+    
+    # Remove células seguras das adjacências do jogador apenas para o tipo de percepção ativado
+    def _remove_safe_from_pseudo_lists(self, player_x: int, player_y: int, perception_type: str) -> None:
+        # Pega as posições adjacentes ao jogador
+        adjacent_positions = set(self._get_adjacent_positions(player_x, player_y))
+        
+        # Trabalha apenas com o tipo de percepção que foi ativado
+        if perception_type == "poço":
+            target_list = self.pseudo_pocos
+            percept_code = self.PERCEPT["poço"]
+        elif perception_type == "teleporter":
+            target_list = self.pseudo_teleporters
+            percept_code = self.PERCEPT["teleporter"]
+        
+        # Itera pela lista de trás para frente para poder remover elementos com segurança
+        for i in range(len(target_list) - 1, -1, -1):
+            pseudo_set = target_list[i]
+            
+            # Verifica se alguma posição adjacente ao jogador está no conjunto
+            positions_to_check = pseudo_set.intersection(adjacent_positions)
+            
+            # Remove apenas as posições adjacentes que são seguras
+            to_remove = set()
+            for pos in positions_to_check:
+                x, y = pos
+                if self.map[x][y][self.IDX_SAFE] == 1:
+                    to_remove.add(pos)
+            
+            pseudo_set -= to_remove
+            
+            # Se sobrou apenas uma posição, é certeza absoluta
+            if len(pseudo_set) == 1:
+                pos = next(iter(pseudo_set))
+                x, y = pos
+                # Marca definitivamente como certeza
+                if self.map[x][y][self.IDX_CERTAIN] == 0:  # só marca se ainda não for certo
+                    self.map[x][y][self.IDX_PERCEPT] = percept_code
+                    self.map[x][y][self.IDX_SAFE] = -1
+                    self.map[x][y][self.IDX_WALK] = -1
+                    self.map[x][y][self.IDX_CERTAIN] = 1  # marca como certeza
+                
+                # Remove o conjunto da lista (dois coelhos numa cajadada só)
+                target_list.pop(i)
+            
+            # Se o conjunto ficou vazio, também remove
+            elif len(pseudo_set) == 0:
+                target_list.pop(i)
+    
+    # Aplicação da regra de que ameaças não são adjacentes (poços ou teleporters)
+    def _apply_non_adjacent_rule(self, player_x: int, player_y: int, perception_type: str) -> None:
+        # Verifica apenas as posições adjacentes ao jogador
+        adjacent_positions = self._get_adjacent_positions(player_x, player_y)
+        
+        # Define qual tipo de ameaça estamos procurando
+        if perception_type == "poço":
+            threat_percept = self.PERCEPT["poço"]
+            target_list = self.pseudo_pocos
+        elif perception_type == "teleporter":
+            threat_percept = self.PERCEPT["teleporter"]
+            target_list = self.pseudo_teleporters
+        else:
+            return  # Tipo não reconhecido
+        
+        # Encontra ameaças com certeza absoluta apenas nos arredores
+        certain_threats = []
+        for x, y in adjacent_positions:
+            cell = self.map[x][y]
+            if (cell[self.IDX_PERCEPT] == threat_percept and 
+                cell[self.IDX_CERTAIN] == 1):
+                certain_threats.append((x, y))
+        
+        # Remove posições adjacentes a ameaças confirmadas de todos os conjuntos
+        for threat_pos in certain_threats:
+            tx, ty = threat_pos
+            adjacent_to_threat = set(self._get_all_adjacent_positions(tx, ty))  # Inclui diagonais
+            
+            # Marca todas as posições adjacentes como seguras
+            for adj_x, adj_y in adjacent_to_threat:
+                adj_cell = self.map[adj_x][adj_y]
+                adj_cell[self.IDX_SAFE] = 1  # marca como seguro
+                # Remove percepção da ameaça se houver
+                if adj_cell[self.IDX_PERCEPT] == threat_percept:
+                    adj_cell[self.IDX_PERCEPT] = 0  # remove percepção da ameaça
+            
+            # Remove das listas de possíveis ameaças
+            for pseudo_set in target_list:
+                pseudo_set -= adjacent_to_threat
+    
+    
     # --------------- Métodos auxiliares internos ---------------
 
     # Verifica se as coordenadas estão dentro dos limites do mapa (true/false)
     def _inside(self, x: int, y: int) -> bool:
         return 0 <= x < self.WIDTH and 0 <= y < self.HEIGHT
+    
+    # Retorna uma lista de tuplas (x, y) das células adjacentes válidas (4 direções)
+    def _get_adjacent_positions(self, x: int, y: int) -> List[Tuple[int, int]]:
+        adjacent = []
+        for dx, dy in ((1,0), (-1,0), (0,1), (0,-1)):
+            nx, ny = x + dx, y + dy
+            if self._inside(nx, ny):
+                adjacent.append((nx, ny))
+        return adjacent
+    
+    # Retorna uma lista de tuplas (x, y) das células adjacentes e diagonais válidas (8 direções)
+    def _get_all_adjacent_positions(self, x: int, y: int) -> List[Tuple[int, int]]:
+        adjacent = []
+        for dx, dy in ((1,0), (-1,0), (0,1), (0,-1), (1,1), (1,-1), (-1,1), (-1,-1)):
+            nx, ny = x + dx, y + dy
+            if self._inside(nx, ny):
+                adjacent.append((nx, ny))
+        return adjacent
 
     # Retorna a célula à frente do agente
     def _front(self, x: int, y: int, direction: str) -> Tuple[int, int]:
@@ -129,11 +269,7 @@ class MapKnowledge:
 
     # Marca as células adjacentes com a percepção dada
     def _mark_adjacent(self, x: int, y: int, percept_code: int) -> None:
-        for dx, dy in ((1,0), (-1,0), (0,1), (0,-1)):
-            nx, ny = x + dx, y + dy
-            if not self._inside(nx, ny):
-                continue  # não sobrescreve se fora do mapa
-
+        for nx, ny in self._get_adjacent_positions(x, y):
             cell = self.map[nx][ny]
            
             if cell[self.IDX_SAFE] == 1:
@@ -143,19 +279,13 @@ class MapKnowledge:
 
     # Marca vizinhos como seguros, limpando marcas de poço/teleporter
     def _mark_adjacent_safe(self, x: int, y: int) -> None:
-        for dx, dy in ((1,0), (-1,0), (0,1), (0,-1)):
-            nx, ny = x + dx, y + dy
-            if not self._inside(nx, ny):
-                continue
+        for nx, ny in self._get_adjacent_positions(x, y):
             cell = self.map[nx][ny]
-            # Define como seguro e passável
+            # Define como seguro 
             cell[self.IDX_SAFE] = 1
-            if cell[self.IDX_WALK] == 0:
-                cell[self.IDX_WALK] = 1
             # Remove marcações de poço ou teleporter, se houver
             if cell[self.IDX_PERCEPT] in (self.PERCEPT["poço"], self.PERCEPT["teleporter"]):
                 cell[self.IDX_PERCEPT] = 0
-
 
     #--------------- [DEBUG] ---------------
 
@@ -166,7 +296,7 @@ class MapKnowledge:
     # Verifica se deve fazer print automático e executa
     def _check_auto_print(self, x: int, y: int, direction: str) -> None:
         if self.auto_print and (self.last_x != x or self.last_y != y or self.last_direction != direction):
-            if self.last_x is not None:  # Não printa na primeira execução
+            if self.last_x is not None:  
                 print("\n# =============================================== MAPA DO CONHECIMENTO ================================================")
                 self.print_map(x, y, direction)
                 print("# =====================================================================================================================\n")
@@ -222,7 +352,14 @@ class MapKnowledge:
                     ch, color = f"{symbol} ", 'green'
                 # 1) bloqueado
                 elif walk == -1:
-                    ch, color = "X ", 'red' 
+                    # Se também for poço, cor roxa
+                    if perc == self.PERCEPT["poço"]:
+                        ch, color = "X ", 'purple'
+                    # Se também for teleporter, cor ciano
+                    elif perc == self.PERCEPT["teleporter"]:
+                        ch, color = "X ", 'cyan'
+                    else:
+                        ch, color = "X ", 'red'
                 # 2) poço
                 elif perc == self.PERCEPT["poço"]:
                     ch, color = "° ", 'purple'  

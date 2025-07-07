@@ -59,6 +59,17 @@ class BotDebugManager:
         obs_str  = ", ".join(obs_list) if obs_list else "nenhuma"
         self.print_debug(f"Observações recebidas: {obs_str}", "OBS", cmd)
 
+    def log_status(self, cmd):
+        if len(cmd) >= 7: 
+            x, y, direction, item, energy, score = cmd[1], cmd[2], cmd[3], cmd[4], cmd[5], cmd[6]
+            self.print_debug(
+                f"Status atualizado: pos=({x},{y}), dir={direction}, item={item}, energia={energy}, pontos={score}",
+                "STATUS",
+                cmd
+            )
+        else:
+            self.print_debug(f"Status incompleto recebido: {cmd}", "STATUS", cmd)
+
     def log_player(self, cmd):
         pid, name = cmd[1], cmd[2]
         self.print_debug(f"Atualização de player #{pid} → {name}", "PLAYER", cmd)
@@ -141,4 +152,5 @@ class BotDebugManager:
 
     def log_reconnect_failed(self):
         self.print_debug("Falha na conexão, tentando de novo em 5s...", "CONNEC", "Falha na conexão, tentando de novo em 5s...")
+
     

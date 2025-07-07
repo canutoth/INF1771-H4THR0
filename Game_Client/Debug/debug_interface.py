@@ -109,7 +109,7 @@ class DebugInterface:
             self.ai.manual_mode,
             self.bot.raw_enabled,
             False,  
-            self.ai.get_auto_print_state(),  # Auto Print
+            self.ai.get_auto_print_state(),  
         ]
 
     # =========================================================================

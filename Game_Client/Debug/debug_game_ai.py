@@ -8,7 +8,7 @@ class GameAIDebugManager:
         self.ui            = None
         self._cache_status = None
         self._cache_obs    = ""
-        self.map_knowledge = None  # Referência para o MapKnowledge
+        self.map_knowledge = None  
 
     # ligação UI
     def bind_ui(self, ui):
@@ -18,9 +18,24 @@ class GameAIDebugManager:
         if self._cache_obs:
             ui.update_observation(self._cache_obs.split(", "))
 
-    # Configurar referência para o MapKnowledge
     def set_map_knowledge(self, map_knowledge):
         self.map_knowledge = map_knowledge
+
+    # Get auto print state from map knowledge
+    def get_auto_print_state(self):
+        if self.map_knowledge:
+            return self.map_knowledge.auto_print
+        return False
+
+    # Toggle auto print in map knowledge
+    def toggle_auto_print(self):
+        if self.map_knowledge:
+            self.map_knowledge.set_auto_print(not self.map_knowledge.auto_print)
+
+    # Print map using map knowledge
+    def print_map(self):
+        if self.map_knowledge:
+            self.map_knowledge.print_map()
 
     # ---------- CONTROLES ----------
     def toggle_debug(self):
@@ -29,18 +44,6 @@ class GameAIDebugManager:
     def toggle_manual(self):
         self.manual_mode = not self.manual_mode
         self.command_queue.clear()
-
-    def toggle_auto_print(self):
-        if self.map_knowledge:
-            current_state = getattr(self.map_knowledge, 'auto_print', False)
-            self.map_knowledge.set_auto_print(not current_state)
-            if self.debug_enabled:
-                print(f"# AUTO PRINT: {'ativado' if not current_state else 'desativado'}")
-
-    def get_auto_print_state(self):
-        if self.map_knowledge:
-            return getattr(self.map_knowledge, 'auto_print', False)
-        return False
 
     def add_manual_command(self, cmd):
         if not self.manual_mode:
@@ -58,15 +61,6 @@ class GameAIDebugManager:
         action = map_cmd.get(cmd)
         if action:
             self.command_queue.append(action)
-
-    # Função para solicitar print do mapa
-    def print_map(self):
-        if self.map_knowledge:
-            print("\n# =============================================== MAPA DO CONHECIMENTO ================================================")
-            self.map_knowledge.print_map()
-            print("# =====================================================================================================================\n")
-        else:
-            print("# ERRO: MapKnowledge não está configurado")
 
     def get_manual_decision(self):
         if self.manual_mode and self.command_queue:
@@ -92,12 +86,6 @@ class GameAIDebugManager:
     def log_observation(self, obs):
         if self.ui:
             self.ui.update_observation(obs)
-
-    # Debug no terminal
-    def log_decision(self, decision):
-        if not self.debug_enabled:
-            return
-        self._log(f"Decisão: {decision}")
 
     # Debug no terminal
     def decision_explanation(self, idx, total):
