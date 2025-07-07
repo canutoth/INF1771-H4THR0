@@ -1,7 +1,14 @@
 ﻿import random
 from Map.Position import Position
-from typing import List
+from enum import Enum
+from typing import List, Dict
 from MapKnowledge import MapKnowledge               #MAPA
+
+from Debug.debug_game_ai import GameAIDebugManager  # ==DEBUG==
+from maquina_estados import ExplorationDecision, AttackDecision, SurvivalDecision
+    
+from typing import List
+
 from Debug.debug_game_ai import GameAIDebugManager  #DEBUG
 
 # CLASSE PRINCIPAL DA GAME AI
@@ -202,57 +209,29 @@ class GameAI():
                 return manual_decision
             return ""                      # sem comando, não faz nada
         # ---------- CONTROLE MANUAL (DEBUG) ----------
-        
-        # Lógica automática original (decisão aleatória):
-        n = random.randint(0,7)
+    
 
-        self.debug_manager.decision_explanation(n, 8) # DEBUG
+        
 
-        # Vira a direita
-        # Cada ação executada possui o custo de -1 (andar, virar para a esquerda, direita, etc)
-        if n == 0:
-            decision = "virar_direita"
-        
-        # Vira a esquerda
-        # Cada ação executada possui o custo de -1 (andar, virar para a esquerda, direita, etc)
-        elif n == 1:
-            decision = "virar_esquerda"
-        
-        # Anda para frente
-        # Cada ação executada possui o custo de -1 (andar, virar para a esquerda, direita, etc)
-        elif n == 2:
-            decision = "andar"
-        
-        # Dá um tiro
-        # Atirar = -10
-        # Matar um inimigo = +1000
-        elif n == 3:
-            decision = "atacar"
-        
-        # Tenta pegar um item (nesse caso pressupoe que haja um ouro na posição do jogador)
-        # Pegar = -5 + ganho do item (a tentativa mesmo que não tenha nada)
-        # Moedas de ouro (+1000)
-        elif n == 4:
-            decision = "pegar_ouro"
 
-        # Tenta pegar um item (nesse caso pressupoe que haja um anel na posição do jogador)
-        # Pegar = -5 + ganho do item (a tentativa mesmo que não tenha nada)
-        # Anéis de ouro (+500)
-        elif n == 5:
-            decision = "pegar_anel"
-        
-        # Tenta pegar um item (nesse caso pressupoe que haja um powerup na posição do jogador)
-        # Pegar = -5 + ganho do item (a tentativa mesmo que não tenha nada)
-        # Poções (power up +10, +20 ou +50 - energia)
-        elif n == 6:
-            decision = "pegar_powerup"
-        
-        # Anda para trás
-        # Cada ação executada possui o custo de -1 (andar, virar para a esquerda, direita, etc)
-        elif n == 7:
-            decision = "andar_re"
+        # Máquina de estados
+        if self.energy < 30:
+            self.state = "sobrevivencia"
         else:
-            decision = ""
+            self.state = "exploracao"
+
+        if self.state == "sobrevivencia":
+            return SurvivalDecision()
+        elif self.state == "exploracao":
+            return ExplorationDecision() # se quiser testar substitui por aleatorio()
+        elif self.state == "ataque":
+            return AttackDecision()
+        else:
+            return ""
+
+
+
+        
         
         
         # DEBUG
