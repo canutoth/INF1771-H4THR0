@@ -49,6 +49,7 @@ class MapKnowledge:
         self.last_x = None
         self.last_y = None
         self.last_direction = None
+        self.last_observations = None
         
         # Sistema de inferência de poços
         self.pseudo_pocos: List[set] = []  # Lista de conjuntos de possíveis poços
@@ -60,12 +61,13 @@ class MapKnowledge:
             return
 
         # Verifica se deve fazer print automático
-        self._check_auto_print(x, y, direction)
+        self._check_auto_print(x, y, direction, observations)
         
-        # Atualiza posição e direção atuais
+        # Atualiza posição, direção e observações atuais
         self.last_x = x
         self.last_y = y
         self.last_direction = direction
+        self.last_observations = observations[:]
         cell = self.map[x][y]
 
         # -------- marca passagem pelo bloco atual --------
@@ -294,12 +296,25 @@ class MapKnowledge:
         self.auto_print = enabled
 
     # Verifica se deve fazer print automático e executa
-    def _check_auto_print(self, x: int, y: int, direction: str) -> None:
-        if self.auto_print and (self.last_x != x or self.last_y != y or self.last_direction != direction):
-            if self.last_x is not None:  
-                print("\n# =============================================== MAPA DO CONHECIMENTO ================================================")
-                self.print_map(x, y, direction)
-                print("# =====================================================================================================================\n")
+    def _check_auto_print(self, x: int, y: int, direction: str, observations: List[str]) -> None:
+        if not self.auto_print:
+            return
+            
+        # Verifica se houve mudança significativa
+        position_changed = (self.last_x != x or self.last_y != y)
+        direction_changed = (self.last_direction != direction)
+        observations_changed = (self.last_observations != observations)
+        
+        # Ignora mudanças para observações vazias ou "nenhum" se não houve mudança de posição/direção
+        trivial_observations = observations == ['nenhum'] or observations == []
+        
+        should_print = (position_changed or direction_changed or 
+                       (observations_changed and not trivial_observations))
+        
+        if should_print and self.last_x is not None:  
+            print("\n# =============================================== MAPA DO CONHECIMENTO ================================================")
+            self.print_map(x, y, direction)
+            print("# =====================================================================================================================\n")
 
     def print_map(self, player_x: int = None, player_y: int = None, player_direction: str = None) -> None:
         colors = {
@@ -327,7 +342,9 @@ class MapKnowledge:
         legenda = (
             f"{colors['red']}X{colors['reset']}=Bloq. "
             f"{colors['purple']}°{colors['reset']}=Poço "
+            f"{colors['purple']}X{colors['reset']}=Poço CTZ "
             f"{colors['cyan']}/{colors['reset']}=Telep. "
+            f"{colors['cyan']}X{colors['reset']}=Telep. CTZ "
             f"{colors['yellow']}A{colors['reset']}=Anel "
             f"{colors['yellow']}M{colors['reset']}=Moeda "
             f"{colors['yellow']}O{colors['reset']}=Ouro "
@@ -352,10 +369,10 @@ class MapKnowledge:
                     ch, color = f"{symbol} ", 'green'
                 # 1) bloqueado
                 elif walk == -1:
-                    # Se também for poço, cor roxa
+                    # Se também for poço, cor roxa (poço confirmado)
                     if perc == self.PERCEPT["poço"]:
                         ch, color = "X ", 'purple'
-                    # Se também for teleporter, cor ciano
+                    # Se também for teleporter, cor ciano (teleporter confirmado)
                     elif perc == self.PERCEPT["teleporter"]:
                         ch, color = "X ", 'cyan'
                     else:
