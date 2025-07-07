@@ -2,10 +2,14 @@
 from Map.Position import Position
 from enum import Enum
 from typing import List, Dict
+from MapKnowledge import MapKnowledge               #MAPA
 
 from Debug.debug_game_ai import GameAIDebugManager  # ==DEBUG==
 from maquina_estados import ExplorationDecision, AttackDecision, SurvivalDecision
     
+from typing import List
+
+from Debug.debug_game_ai import GameAIDebugManager  #DEBUG
 
 # CLASSE PRINCIPAL DA GAME AI
 # RECEBE INFORMAÇOES DE BOT.PY, AS PROCESSA E RETORNA DECISÕES
@@ -18,11 +22,14 @@ class GameAI():
     score = 0
     energy = 0
     
-    # ==DEBUG==
-    debug_manager = None  # Gerenciador de debug específico para GameAI
+    map_knowledge = None # MAPA
+    debug_manager = None  # DEBUG
     
     def __init__(self):
-        self.debug_manager = GameAIDebugManager()
+
+        self.debug_manager = GameAIDebugManager() # MAPA
+        self.map_knowledge = MapKnowledge() # DEBUG
+        self.debug_manager.set_map_knowledge(self.map_knowledge) # DEBUG/MAPA
 
     # STATUS DO BOT
     # Recebe a mensagem do servidor com o status do bot e atualiza as variáveis internas do bot
@@ -41,9 +48,7 @@ class GameAI():
         self.state = state
         self.score = score
         self.energy = energy
-        
-        # DEBUG
-        self.debug_manager.log_status(x, y, dir, state, score, energy)
+        self.debug_manager.log_status(x, y, dir, state, score, energy) #DEBUG
 
     # Retorna lista de posições adjacentes observáveis (cima, baixo, esquerda, direita) em relação à posição atual do jogador 
     # Não recebe nada de posição, usa o conhecimeto prévio da posição atual do jogador para retornar as posições adjacentes
@@ -117,49 +122,37 @@ class GameAI():
         # coordenadas atuais do player
     def GetObservations(self, o):
 
-         # ==DEBUG==
-        self.debug_manager.log_observation(o)
+        self.debug_manager.log_observation(o) # DEBUG
+        self.map_knowledge.update(self.player.x, self.player.y, self.dir, o) # MAPA
     
         for s in o:
-        
             # Ao caminhar contra uma parede o agente sente um impacto. As laterais do labirinto são paredes, o mapa também pode conter outras posições bloqueadas
             # blocked: último movimento não foi feito. Destino está bloqueado
-            if s == "blocked": # 
+            if s == "blocked": # Quando anda em direção
                 pass
-
             # Em coordenadas adjacentes aos inimigos, exceto diagonal, o agente ouve um som de passos.
             # steps: há um inimigo próximo há até 2 passos de distância de manhatan
-            elif s == "steps":
+            elif s == "steps": # Quando está ao lado
                 pass
             
             # Em coordenadas adjacentes a um poço/obstáculo, exceto diagonal, o agente sente uma brisa.
             # breeze: há uma brisa (buraco) adjacente (1 passo em distância de manhatan)
-            elif s == "breeze":
+            elif s == "breeze": # Quando está ao lado
                 pass
 
             # Em coordenadas adjacentes ao inimigo que teletransporta, exceto diagonal, o agente percebe um flash
             # flash: há um clarão (teletransporte) adjacente (1 passo em distância de manhatan)
-            elif s == "flash":
+            elif s == "flash": # Quando está ao lado
                 pass
 
             # Em coordenadas onde existem itens o agente percebe o brilho de uma luz, Bluelight = tesouro
             # blueLight: há uma luz azul fraca (tesouro) na posição do jogador
-            elif s == "blueLight":
+            elif s == "blueLight": # Quando está acima
                 pass
 
             # Em coordenadas onde existem itens o agente percebe o brilho de uma luz, Redlight = powerup
             # redLight: há uma luz vermelha fraca (powerup) na posição do jogador
-            elif s == "redLight":
-                pass
-
-            # Em coordenadas onde existem itens o agente percebe o brilho de uma luz, Greenlight = veneno (não será utilizado nos mapas do trabalho)
-            # greenLight: há uma luz verde fraca (veneno) na posição do jogador
-            elif s == "greenLight":
-                pass
-
-            # Em coordenadas onde existem itens o agente percebe o brilho de uma luz, Weaklight = indefinido
-            # weaklight: há uma luz fraca não identificável na posição do jogador
-            elif s == "weakLight":
+            elif s == "redLight": # Quando está acima
                 pass
             
             # Quando o tiro de um inimigo acerta o agente, ele é notificado
@@ -173,7 +166,7 @@ class GameAI():
                 pass
 
             # enemy: detectado inimigo em até 10 passos na direção o qual o jogador está olhando. Normalmente apresentado como “enemy#xx”, onde xx é o número de passos.
-            elif s.startswith("enemy#"):
+            elif s.startswith("enemy#"): # Quando está a frente
                 try:
                     steps = int(s.replace("enemy#", ""))
                 except:
@@ -188,8 +181,9 @@ class GameAI():
         # devemos apagar as atuais para poder receber novas
         # se nao apagarmos, as novas se misturam com as anteriores
     def GetObservationsClean(self):
-        # ==DEBUG==
-        self.debug_manager.log_observation(['nenhum'])
+       
+        self.debug_manager.log_observation(['nenhum']) # DEBUG
+        self.map_knowledge.update(self.player.x, self.player.y, self.dir, ['nenhum']) # MAPA
         pass
 
     # DECISÃO DO BOT
@@ -207,17 +201,15 @@ class GameAI():
         # 4- envia decisão ao servidor
         # 5- após ação enviada, reinicia voltando ao passo 1
     def GetDecision(self) -> str:
-        # ---------- CONTROLE MANUAL (==DEBUG==) ----------
+        # ---------- CONTROLE MANUAL (DEBUG) ----------
         
         if self.debug_manager.manual_mode:
             manual_decision = self.debug_manager.get_manual_decision()
             if manual_decision:            # há comando na fila, executa
                 return manual_decision
             return ""                      # sem comando, não faz nada
-        # ---------- CONTROLE MANUAL (==DEBUG==) ----------
-        
-        # # Lógica automática original (decisão aleatória):
-        # n = random.randint(0,7)
+        # ---------- CONTROLE MANUAL (DEBUG) ----------
+    
 
         
 
@@ -242,7 +234,7 @@ class GameAI():
         
         
         
-        # ==DEBUG==
+        # DEBUG
         if decision:
             self.debug_manager.log_decision(decision)
         

@@ -10,7 +10,7 @@ class DebugInterface:
     
     def __init__(self):
         pygame.init()
-        self.w, self.h = 400, 560
+        self.w, self.h = 400, 650
         self.screen = None
         
         # Paleta de cores padronizada
@@ -39,15 +39,17 @@ class DebugInterface:
             (50, 100, 300, 40, "Filtro Repetições","bot_filter"),
             (50, 150, 300, 40, "Debug IA",         "ai_dbg"),
             (50, 200, 300, 40, "Controle Manual",  "ai_manual"),
-            (50, 250, 300, 40, "Raw Mode",         "bot_raw"),    
+            (50, 250, 300, 40, "Raw Mode",         "bot_raw"),
+            (50, 300, 300, 40, "Print Mapa",       "print_map"),    
+            (50, 350, 300, 40, "Auto Print",       "auto_print"),
         ]
         
         # Configuração dos botões de controle manual
         self.mbtns = [
-            (170,340,60,28,"FRENTE","up"), (110,371,60,28,"V_ESQ","left"),
-            (230,371,60,28,"V_DIR","right"), (170,402,60,28,"TRÁS","down"),
-            (320,340,60,28,"ATK","attack"), (320,371,60,28,"OURO","gold"),
-            (320,402,60,28,"ANEL","ring"),  (320,433,60,28,"PWR","powerup"),
+            (170,430,60,28,"FRENTE","up"), (110,461,60,28,"V_ESQ","left"),
+            (230,461,60,28,"V_DIR","right"), (170,492,60,28,"TRÁS","down"),
+            (320,430,60,28,"ATK","attack"), (320,461,60,28,"OURO","gold"),
+            (320,492,60,28,"ANEL","ring"),  (320,523,60,28,"PWR","powerup"),
         ]
         self.running = True
 
@@ -99,20 +101,22 @@ class DebugInterface:
     
     def _states(self):
         if not self.bot or not self.ai:
-            return [False] * 4
+            return [False] * 7
         return [
             self.bot.debug_enabled,
             self.bot.filter_enabled,
             self.ai.debug_enabled,
             self.ai.manual_mode,
-            self.bot.raw_enabled, 
+            self.bot.raw_enabled,
+            False,  
+            self.ai.get_auto_print_state(),  # Auto Print
         ]
 
     # =========================================================================
     # PAINEL DE STATUS E OBSERVAÇÕES (RODAPÉ)
     # =========================================================================
     def _draw_footer(self):
-        footer_y = 470
+        footer_y = 560
         pygame.draw.rect(self.screen, self.col["panel"],
                          (0, footer_y, self.w, self.h - footer_y))
 
@@ -146,8 +150,8 @@ class DebugInterface:
 
         # Calcula posicionamento centralizado
         center_x = self.w // 2
-        title_y = footer_y + 60
-        
+        title_y = footer_y + 55
+
         obs_x = center_x - total_width // 2
         text_x = obs_x + title_surf.get_width() + 12
 
@@ -168,6 +172,8 @@ class DebugInterface:
         elif act == "ai_dbg":     self.ai.toggle_debug()
         elif act == "ai_manual":  self.ai.toggle_manual()
         elif act == "bot_raw":    self.bot.toggle_raw()
+        elif act == "print_map":  self.ai.print_map()
+        elif act == "auto_print": self.ai.toggle_auto_print()
 
     def _click(self, pos):
         x, y = pos
@@ -203,7 +209,7 @@ class DebugInterface:
         if self.ai and self.ai.manual_mode:
             control_surf = self._text("Interface - Controle")
             control_x = self.w//2 - control_surf.get_width()//2
-            self.screen.blit(control_surf, (control_x, 310))
+            self.screen.blit(control_surf, (control_x, 400))
             for x, y, w, h, lbl, _ in self.mbtns:
                 self._draw_mbtn(x, y, w, h, lbl)
 
