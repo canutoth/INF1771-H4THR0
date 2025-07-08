@@ -47,15 +47,23 @@ class PathFinder:
         if current_x == target_x and current_y == target_y:
             return []
         
+        # Verifica se o destino é válido
+        if not self._inside(target_x, target_y):
+            return []
+        
         # Obtém o mapa seguro
         safe_map = self.map_knowledge.get_safe_map()
+        
+        # Verifica se o destino é passável
+        if safe_map[target_x][target_y] != 1:
+            return []
         
         # Estado inicial: (x, y, direction_index)
         current_dir_index = self.DIR_TO_INDEX.get(current_direction.lower(), 0)
         start_state = (current_x, current_y, current_dir_index)
         goal_position = (target_x, target_y)
         
-        # Executa A* (sempre encontrará um caminho)
+        # Executa A*
         g_scores, predecessors, actions = self._a_star(safe_map, start_state, goal_position)
         
         # Extrai o caminho
@@ -139,6 +147,10 @@ class PathFinder:
             for d in range(4) 
             if (goal_position[0], goal_position[1], d) in g_scores
         ]
+        
+        # Se não encontrou nenhum caminho para o destino, retorna lista vazia
+        if not goal_states:
+            return []
         
         # Escolhe o estado com menor custo
         end_state = min(goal_states, key=lambda state: g_scores[state])

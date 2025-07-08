@@ -15,7 +15,7 @@ import re
 class Bot():
     # ==================== CONFIGURAÇÕES DO BOT ====================
     botcolor = (149, 0, 255)        # Cor do bot (RGB)
-    name = "h4thr0_ex2"                # Nome do bot
+    name = "h4thr02"                # Nome do bot
     host = "atari.icad.puc-rio.br"  # Endereço do servidor
     port = 8888                     # Porta do servidor
 
@@ -127,7 +127,7 @@ class Bot():
                             self.client.sendRequestUserStatus()
                         self.gameStatus = cmd[1]
                         self.time = int(cmd[2])
-                        self.gameAi.SetGameTime(self.time)  # Passa o tempo para a GameAI
+                        self.gameAi.SetGameTime(self.time)  # Passa o tempo em segundos para a GameAI
                         self.debug_manager.log_game(cmd) # DEBUG    
                 ######################################################        
                 elif cmd[0] == "u":
@@ -280,6 +280,10 @@ class Bot():
         # Atualiza contadores e solicita status
         self.msgSeconds += self.timer1.interval * 1000
         self.client.sendRequestGameStatus()
+        
+        # Incrementa o tick a cada ciclo real (0.1 segundos)
+        if self.gameStatus == "Game":
+            self.gameAi.IncrementTick()
 
         # Logs, scoreboard e timer periódicos (0.1 segundos)
         should_reset_timer = self.msgSeconds >= 100

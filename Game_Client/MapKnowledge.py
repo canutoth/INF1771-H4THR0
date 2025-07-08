@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Iterator, Dict
 
 # CLASSE DO CONHECIMENTO DE MAPA
 # GUARDA E ATUALIZA INFORMAÇÕES DO LABIRINTO
@@ -7,26 +7,26 @@ class MapKnowledge:
     Cada célula contém:
         [0] seguro:      -1 (não), 0 (desconhecido), 1 (sim)
         [1] passável:    -1 (não), 0 (desconhecido), 1 (sim)
-        [2] percepção:    0-6 conforme tabela
+        [2] percepção:    0-7 conforme tabela
         [3] n_passagens:  contador de passagens pelo bloco
-        [4] qtd_potion:   energia recuperada pela poção (0 se indef.)
-        [5] certeza:      0 (desconhecido), 1 (certeza absoluta)
+        [4] certeza:      0 (desconhecido), 1 (certeza absoluta)
     """
     #Tamanho do mapa, vai de (0,0) [esquerda superior] a (58,33) [direita inferior]
     WIDTH, HEIGHT = 59, 34
 
     # Índices auxiliares
-    IDX_SAFE, IDX_WALK, IDX_PERCEPT, IDX_VISITS, IDX_PWR, IDX_CERTAIN = range(6)
+    IDX_SAFE, IDX_WALK, IDX_PERCEPT, IDX_VISITS, IDX_CERTAIN = range(5)
 
     # Percepções   
     PERCEPT = {
-        "bloqueado":     0,
-        "poço":          1,  
-        "teleporter":    2,
-        "ouro":          3,
-        "anel":          4,
-        "moeda":         5,
-        "poçao":         6
+        "nenhum":        0,
+        "bloquado":      1,
+        "poço":          2,  
+        "teleporter":    3,
+        "ouro":          4,
+        "anel":          5,
+        "moeda":         6,
+        "poçao":         7
     }
 
     # Vetores de deslocamento para pegar a célula à frente
@@ -53,6 +53,9 @@ class MapKnowledge:
         # Sistema de inferência de poços
         self.pseudo_pocos: List[set] = []  # Lista de conjuntos de possíveis poços
         self.pseudo_teleporters: List[set] = []  # Lista de conjuntos de possíveis teleporters
+        
+        # Sistema de controle de respawn de itens
+        self.item_respawn_timers: Dict[Tuple[int, int], int] = {}  # {(x, y): ticks_restantes}
 
     # ------------------------------ [API PRINCIPAL] ------------------------------
     #    ------------------------------ [INÍCIO] ------------------------------
@@ -107,8 +110,6 @@ class MapKnowledge:
 
             elif obs.startswith("redLight"):
                 cell[self.IDX_PERCEPT] = self.PERCEPT["poçao"]
-                if "#" in obs:
-                    cell[self.IDX_PWR] = int(obs.split("#", 1)[1])
 
             # PERCEPÇÕES ADJACENTES
             elif obs == "breeze":
@@ -293,7 +294,7 @@ class MapKnowledge:
            
             if cell[self.IDX_SAFE] == 1:
                 continue  # não sobrescreve se já for considerado seguro
-
+            
             cell[self.IDX_PERCEPT] = percept_code 
 
     # Marca vizinhos como seguros, limpando marcas de poço/teleporter
@@ -305,6 +306,33 @@ class MapKnowledge:
             # Remove marcações de poço ou teleporter, se houver
             if cell[self.IDX_PERCEPT] in (self.PERCEPT["poço"], self.PERCEPT["teleporter"]):
                 cell[self.IDX_PERCEPT] = 0
+
+    # Itera sobre as células livres (seguras, não visitadas e sem percepção)
+    def _iter_free_cells(
+        self,
+        player_x: int,
+        player_y: int,
+        max_manhattan: int = 0
+    ) -> Iterator[Tuple[int, int, int]]:
+        if max_manhattan:
+            x_min = max(player_x - max_manhattan, 0)
+            x_max = min(player_x + max_manhattan, self.WIDTH  - 1)
+            y_min = max(player_y - max_manhattan, 0)
+            y_max = min(player_y + max_manhattan, self.HEIGHT - 1)
+        else:
+            x_min, y_min, x_max, y_max = 0, 0, self.WIDTH - 1, self.HEIGHT - 1
+
+        for x in range(x_min, x_max + 1):
+            for y in range(y_min, y_max + 1):
+                cell = self.map[x][y]
+                if (cell[self.IDX_SAFE] == 1 and
+                    cell[self.IDX_WALK] == 0 and
+                    cell[self.IDX_PERCEPT] == 0):
+
+                    dist = abs(x - player_x) + abs(y - player_y)
+                    if max_manhattan and dist > max_manhattan:
+                        continue
+                    yield x, y, dist
 
     # ------------------------------ [MÉTODOS AUXILIARES INTERNOS] ------------------------------
     #           ------------------------------ [FIM] ------------------------------
@@ -323,11 +351,108 @@ class MapKnowledge:
             column = []
             for y in range(self.HEIGHT):
                 cell = self.map[x][y]
-                is_passable = (cell[self.IDX_SAFE] == 1 and cell[self.IDX_WALK] == 1) # Seguro e andável
+                is_passable = (cell[self.IDX_SAFE] == 1 and cell[self.IDX_WALK] != -1) # Seguro e não bloqueado
                 column.append(1 if is_passable else 0)
             safe_map.append(column)
         return safe_map
 
+    # Retorna as coordenadas livres (seguras, não visitadas e sem percepção) no mapa
+    # Aceita parametro opcional max_manhattan para limitar a distância de Manhattan
+    def get_free_coordinates(
+        self,
+        player_x: int,
+        player_y: int,
+        max_manhattan: int = 0
+    ) -> List[Tuple[int, int]]:
+        return [(x, y) for x, y, _ in
+                self._iter_free_cells(player_x, player_y, max_manhattan)]
+
+    # Retorna a coordenada livre mais próxima do jogador, considerando a distância de Manhattan
+    def get_free_coordinate_nearest(
+        self,
+        player_x: int,
+        player_y: int,
+        max_manhattan: int = 0
+    ) -> Optional[Tuple[int, int]]:
+        best = min(
+            self._iter_free_cells(player_x, player_y, max_manhattan),
+            key=lambda t: t[2],
+            default=None
+        )
+        return (best[0], best[1]) if best else None
+
+    # Retorna coordenadas conhecidas (seguras e walkable) dentro da distância Manhattan especificada
+    def get_known_coordinates(
+        self,
+        player_x: int,
+        player_y: int,
+        max_manhattan: int = 0
+    ) -> List[Tuple[int, int]]:
+        known_coords = []
+        
+        # Define os limites da busca
+        if max_manhattan > 0:
+            x_min = max(player_x - max_manhattan, 0)
+            x_max = min(player_x + max_manhattan, self.WIDTH - 1)
+            y_min = max(player_y - max_manhattan, 0)
+            y_max = min(player_y + max_manhattan, self.HEIGHT - 1)
+        else:
+            x_min, y_min, x_max, y_max = 0, 0, self.WIDTH - 1, self.HEIGHT - 1
+
+        for x in range(x_min, x_max + 1):
+            for y in range(y_min, y_max + 1):
+                # Verifica se está dentro da distância Manhattan
+                if max_manhattan > 0:
+                    manhattan_dist = abs(x - player_x) + abs(y - player_y)
+                    if manhattan_dist > max_manhattan:
+                        continue
+                
+                cell = self.map[x][y]
+                # Coordenada conhecida: segura e walkable (visitada ou confirmada)
+                if (cell[self.IDX_SAFE] == 1 and 
+                    cell[self.IDX_WALK] == 1 and 
+                    (x != player_x or y != player_y)):  # Exclui posição atual
+                    known_coords.append((x, y))
+        
+        return known_coords
+
+    # Verifica se há ouro na célula especificada
+    def is_gold_here(self, x: int, y: int) -> bool:
+        return self.map[x][y][self.IDX_PERCEPT] in (
+            self.PERCEPT["ouro"], self.PERCEPT["anel"], self.PERCEPT["moeda"])
+    
+    # Verifica se há um poço na célula especificada
+    def is_potion_here(self, x: int, y: int) -> bool:
+        return self.map[x][y][self.IDX_PERCEPT] == self.PERCEPT["poçao"]
+    
+    
+    # Registra que um item foi pego na coordenada especificada, iniciando o timer de respawn de 300 ticks
+    def register_item_picked(self, x: int, y: int) -> None:
+        self.item_respawn_timers[(x, y)] = 300
+    
+    # Atualiza os timers de respawn (deve ser chamado a cada tick)
+    def update_respawn_timers(self) -> None:
+        # Itera de trás para frente para poder remover items com segurança
+        expired_positions = []
+        for position, ticks_remaining in self.item_respawn_timers.items():
+            new_ticks = ticks_remaining - 1
+            if new_ticks <= 0:
+                expired_positions.append(position)
+            else:
+                self.item_respawn_timers[position] = new_ticks
+        
+        # Remove posições que expiraram
+        for position in expired_positions:
+            del self.item_respawn_timers[position]
+    
+    # Verifica se um item pode ser pego na coordenada especificada
+    def can_pick_item(self, x: int, y: int) -> bool:
+        return (x, y) not in self.item_respawn_timers
+    
+    # Retorna informações sobre items em cooldown (para debug)
+    def get_respawn_info(self) -> Dict[Tuple[int, int], int]:
+        return self.item_respawn_timers.copy()
+    
     # ------------------------------ [MÉTODOS AUXILIARES EXTERNOS] ------------------------------
     #           ------------------------------ [FIM] ------------------------------
     # ------------------------------ [MÉTODOS AUXILIARES EXTERNOS] ------------------------------
