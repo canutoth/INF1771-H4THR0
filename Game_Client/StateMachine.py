@@ -22,14 +22,22 @@ class GameStateMachine:
         self._current_target: Optional[Tuple[int, int]] = None  # Destino atual
         self._path_finder: Optional[PathFinder] = None
 
+        # Evade
+        self._last_hit_time = None
+        self._last_evade_axis = 0   # 0 = nenhum, 1 = frente/trás ou 2 = esquerda/direita
+        self.AXIS = {
+            "nenhum": 0,
+            "frente/trás": 1,  
+            "esquerda/direita":  2
+        }
+
         self.handlers: Dict[str, Callable[[Any], str]] = {
             "Exploration":      self._exploration,
             "LookForOponent":   self._look_for_oponent,
             "Attack":           self._attack,
+            "Evade":            self._evade 
         }
         
-        
-
     # ---------- API pública ----------
     def next_action(self, game_ai) -> str:
         if self._path_finder is None:
@@ -39,37 +47,51 @@ class GameStateMachine:
         prev = self.state
         self._pick_state(game_ai)
 
-        # Se mudou de estado e estava em Attack, reseta contagem e sequência
-        if prev != self.state and self.state == "Attack":
-            self._attack_sequence.clear()
-            self._attack_count = 0
+        if self._last_hit_time is not None and game_ai.game_time_ticks - self._last_hit_time > 5:
+            self._last_hit_time = None # Reseta o tempo do último hit após 5 ticks (tenta ir pra frente/trás primeiro)
+            self._last_evade_axis = self.AXIS["nenhum"]  # Reseta lógica de evade
+        # Se mudou de estado
+        if prev != self.state:
 
-        # Se mudou de estado e estava em Exploration, limpa cooldown
-        if prev != self.state and self.state == "Exploration":
-            self._clear_navigation()
+            # Se mudou de estado e estava em Attack, reseta contagem e sequência
+            if prev == "Attack":
+                self._attack_sequence.clear()
+                self._attack_count = 0
+
+            # Se mudou de estado e estava em Exploration, limpa cooldown
+            if prev == "Exploration":
+                self._clear_navigation()
 
         return self.handlers[self.state](game_ai) or ""
 
     # ---------- Transições ----------
     def _pick_state(self, game_ai):
-        
-        if game_ai.see_enemy() and game_ai.game_time_ticks >= self._attack_cooldown_until:  # viu inimigo e não está em cooldown
+
+        # Se tomou dano -> Evade
+        if game_ai.take_hit():
+            self.state = "Evade"
+            self._last_hit_time = game_ai.game_time_ticks
+            return
+
+        # Viu inimigo e não está em cooldown -> Attack
+        if game_ai.see_enemy() and game_ai.game_time_ticks >= self._attack_cooldown_until:  
             self.state = "Attack"
             return
             
-        # se está no modo look, mantém até esgotar giros ou achar inimigo
+        # Está no modo look -> LookForOponent
         if self._look_mode:
             self.state = "LookForOponent"
             return
 
-        # dispara look-mode se ouvir passos e não estiver em cooldown
+        # Ouviu passos e não está em cooldown -> LookForOponent
         if game_ai.hear_steps() and game_ai.game_time_ticks >= self._look_cooldown_until:
             self._look_mode = True
             self._look_turns = 0
             self.state = "LookForOponent"
             return
         
-        self.state = "Exploration"                       # fallback
+        # Se não está em nenhum outro estado -> Exploration
+        self.state = "Exploration"                      
 
     # ---------- Handlers ----------
     def _attack(self, game_ai):
@@ -165,6 +187,44 @@ class GameStateMachine:
             # Se não há alvo, gira para explorar
             return "virar_esquerda"
     
+    def _evade(self, game_ai):
+        # Se não tomou dano no ultimo tick, sai desse modo
+        if not game_ai.take_hit():
+            return ""
+
+        # Ir para frente/tras
+        if self._last_evade_axis == self.AXIS["nenhum"] or self._last_evade_axis == self.AXIS["esquerda/direita"]: 
+            self._last_evade_axis = self.AXIS["frente/trás"]
+
+            #Verifica se é possivel ir pra frente/trás
+            #Se sim, vai pra frente/trás
+
+            # Pode ir pra frente?
+            nx, ny = game_ai.NextPositionRelative(1, "frente")
+            if game_ai.map_knowledge.is_free(nx, ny):
+                return "andar"
+            
+            # Pode ir pra trás?
+            nx, ny = game_ai.NextPositionRelative(1, "atras")
+            if game_ai.map_knowledge.is_free(nx, ny):
+                return "andar_re"
+        
+        # Ir para esquerda/direita
+        if self._last_evade_axis == self.AXIS["frente/trás"]: 
+            self._last_evade_axis = self.AXIS["esquerda/direita"]
+
+            #Verifica se é possivel ir pra esquerda/direita
+            #Se sim, vai pra esquerda/direita
+
+            # Pode ir pra esquerda?
+            nx, ny = game_ai.NextPositionRelative(1, "esquerda")
+            if game_ai.map_knowledge.is_free(nx, ny):
+                return "andar"
+            # Pode ir pra direita?
+            nx, ny = game_ai.NextPositionRelative(1, "direita")
+            if game_ai.map_knowledge.is_free(nx, ny):
+                return "andar_re"     
+
     # ---------- Sistema de Navegação ----------
 
     # Limpa o caminho e destino atuais.

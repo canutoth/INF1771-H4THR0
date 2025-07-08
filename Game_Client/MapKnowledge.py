@@ -2,7 +2,7 @@ from typing import List, Tuple, Optional, Iterator, Dict
 
 # CLASSE DO CONHECIMENTO DE MAPA
 # GUARDA E ATUALIZA INFORMAÇÕES DO LABIRINTO
-class MapKnowledge:
+class MapKnowledge:    
     """Guarda e atualiza informações do labirinto.
     Cada célula contém:
         [0] seguro:      -1 (não), 0 (desconhecido), 1 (sim)
@@ -26,7 +26,7 @@ class MapKnowledge:
         "anel":          1 << 3,   # 8
         "moeda":         1 << 4,   # 16
         "poçao":         1 << 5,   # 32
-        "bloquado":      1 << 6,   # 64
+        "bloqueado":     1 << 6,   # 64
         "nenhum":        0,
     }
     # ------------------------------------------------------------------------
@@ -98,7 +98,7 @@ class MapKnowledge:
                     tgt[self.IDX_SAFE]     =  1
                     tgt[self.IDX_WALK]     = -1
                     # OR mantém outras flags
-                    tgt[self.IDX_PERCEPT]  |= self.PERCEPT["bloquado"]
+                    tgt[self.IDX_PERCEPT]  |= self.PERCEPT["bloqueado"]
 
             # ITENS
             elif obs.startswith("blueLight"): 
@@ -455,6 +455,13 @@ class MapKnowledge:
     # Retorna informações sobre items em cooldown (para debug)
     def get_respawn_info(self) -> Dict[Tuple[int, int], int]:
         return self.item_respawn_timers.copy()
+    
+    # Verifica se a coordenada é segura e andável
+    def is_free(self, x: int, y: int) -> bool:
+        if not self._inside(x, y):
+            return False
+        cell = self.map[x][y]
+        return cell[self.IDX_SAFE] == 1 and cell[self.IDX_WALK] == 1
     
     # ------------------------------ [MÉTODOS AUXILIARES EXTERNOS] ------------------------------
     #           ------------------------------ [FIM] ------------------------------

@@ -31,6 +31,7 @@ class GameAI():
         # auxiliar STATEMACHINE
         self._enemy_dist: int | None = None
         self._last_steps_ts = -999
+        self._last_hit_ts = -999
 
     # STATUS DO BOT
     def SetStatus(self, x: int, y: int, dir: str, state: str, score: int, energy: int):
@@ -50,6 +51,19 @@ class GameAI():
         self.game_time_ticks += 1
         # Atualiza timers de respawn de itens
         self.map_knowledge.update_respawn_timers()
+
+    # Retorna a posição relativa ao jogador: "frente", "atras", "esquerda" ou "direita", em x passos
+    def NextPositionRelative(self, steps, direction):
+        dir_map = {
+            "north": {"frente": ( 0, -1), "atras": ( 0,  1), "esquerda": (-1,  0), "direita": ( 1,  0)},
+            "east":  {"frente": ( 1,  0), "atras": (-1,  0), "esquerda": ( 0, -1), "direita": ( 0,  1)},
+            "south": {"frente": ( 0,  1), "atras": ( 0, -1), "esquerda": ( 1,  0), "direita": (-1,  0)},
+            "west":  {"frente": (-1,  0), "atras": ( 1,  0), "esquerda": ( 0,  1), "direita": ( 0, -1)},
+        }
+        offsets = dir_map[self.dir].get(direction)
+        dx, dy = offsets
+        return (self.player.x + dx*steps, self.player.y + dy*steps)
+
 
     # Retorna a posição do jogador 
     def GetPlayerPosition(self):
@@ -79,7 +93,7 @@ class GameAI():
             # Quando um inimigo recebe um dano, o agente que disparou o tiro é notificado
             # hit: o jogador acertou um tiro
             elif s == "hit":
-                pass
+                self._last_hit_ts = self.game_time_ticks
 
             # enemy: detectado inimigo em até 10 passos na direção o qual o jogador está olhando. Normalmente apresentado como “enemy#xx”, onde xx é o número de passos.
             elif s.startswith("enemy#"): # Quando está a frente
@@ -120,6 +134,7 @@ class GameAI():
     def see_enemy(self) -> bool:       return self._enemy_dist is not None
     def enemy_dist(self) -> int:       return self._enemy_dist or 99
     def hear_steps(self) -> bool:      return (self.game_time_ticks - self._last_steps_ts) <= 1
+    def take_hit(self) -> bool:      return (self.game_time_ticks - self._last_hit_ts) <= 1
 
     # --- pick-up override ---
     def _check_item_override(self) -> str:
