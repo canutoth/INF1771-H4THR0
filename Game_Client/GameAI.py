@@ -31,8 +31,6 @@ class GameAI():
         # auxiliar STATEMACHINE
         self._enemy_dist: int | None = None
         self._last_steps_ts = -999
-        self._look_mode = False
-        self._look_turns = 0
 
     # STATUS DO BOT
     def SetStatus(self, x: int, y: int, dir: str, state: str, score: int, energy: int):
@@ -117,20 +115,11 @@ class GameAI():
 
 
     # ----------------- Helper API usada pela FSM -----------------
+
     # --- triggers ---
     def see_enemy(self) -> bool:       return self._enemy_dist is not None
     def enemy_dist(self) -> int:       return self._enemy_dist or 99
     def hear_steps(self) -> bool:      return (self.game_time_ticks - self._last_steps_ts) <= 1
-
-    # --- look-mode control ---
-    def start_look_mode(self):         self._look_mode, self._look_turns = True, 0
-    def look_mode_active(self) -> bool:return self._look_mode
-    def look_step_done(self) -> bool:
-        self._look_turns += 1
-        if self._look_turns >= 3 or (self.game_time_ticks - self._last_steps_ts) > 50:  # 3 giros ou 5s (50 ticks)
-            self._look_mode = False
-            return True
-        return False
 
     # --- pick-up override ---
     def _check_item_override(self) -> str:

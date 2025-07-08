@@ -38,7 +38,7 @@ class MapKnowledge:
     }
 
     def __init__(self):
-        default = [0, 0, 0, 0, 0, 0]  # valores iniciais [safe, walk, percept, visits, pwr, certain]
+        default = [0, 0, 0, 0, 0]  # valores iniciais [safe, walk, percept, visits, certain]
         self.map: List[List[List[int]]] = [
             [default[:] for _ in range(self.HEIGHT)] for _ in range(self.WIDTH)
         ]

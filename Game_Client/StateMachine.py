@@ -2,103 +2,138 @@ from typing import Callable, Dict, Any, Optional, Tuple, List
 import random
 from PathFinder import PathFinder
 
+# CLASSE BASE DO STATE MACHINE
+# TRÊS ESTADOS FUNCIONAIS: Exploration ⇄ LookForOponent ⇄ Attack.
 class GameStateMachine:
-    """Três estados funcionais: Exploration ⇄ LookForOponent ⇄ Attack."""
     def __init__(self):
         self.state = "Exploration"
-        self._look_cooldown_until = 0  # Para controle de cooldown de 5s
+        # Attack
+        self._attack_count = 0
+        self._attack_cooldown_until = 0
+        self._attack_sequence: List[str] = []
+
+        # Look-mode
+        self._look_mode = False             # se está girando pra achar inimigo
+        self._look_turns = 0                # quantos giros já fez
+        self._look_cooldown_until = 0       # tick até poder reativar look-mode
+
+        # Navegação
+        self._current_path: List[str] = []  # Caminho atual sendo seguido
+        self._current_target: Optional[Tuple[int, int]] = None  # Destino atual
+        self._path_finder: Optional[PathFinder] = None
+
         self.handlers: Dict[str, Callable[[Any], str]] = {
             "Exploration":      self._exploration,
             "LookForOponent":   self._look_for_oponent,
             "Attack":           self._attack,
         }
         
-        # Sistema de navegação
-        self._current_path: List[str] = []  # Caminho atual sendo seguido
-        self._current_target: Optional[Tuple[int, int]] = None  # Destino atual
-        self._path_finder: Optional[PathFinder] = None
+        
 
     # ---------- API pública ----------
-    def next_action(self, ctx) -> str:
-        # Inicializa PathFinder se necessário
+    def next_action(self, game_ai) -> str:
         if self._path_finder is None:
-            self._path_finder = PathFinder(ctx.map_knowledge)
+            self._path_finder = PathFinder(game_ai.map_knowledge)
         else:
-            # Atualiza a referência do MapKnowledge no PathFinder
-            self._path_finder.map_knowledge = ctx.map_knowledge
-            
-        previous_state = self.state
-        self._pick_state(ctx)
-        
-        # Se mudou de estado, limpa navegação atual
-        if previous_state != self.state:
+            self._path_finder.map_knowledge = game_ai.map_knowledge
+        prev = self.state
+        self._pick_state(game_ai)
+
+        # Se mudou de estado e estava em Attack, reseta contagem e sequência
+        if prev != self.state and self.state == "Attack":
+            self._attack_sequence.clear()
+            self._attack_count = 0
+
+        # Se mudou de estado e estava em Exploration, limpa cooldown
+        if prev != self.state and self.state == "Exploration":
             self._clear_navigation()
-            
-        return self.handlers[self.state](ctx) or ""
+
+        return self.handlers[self.state](game_ai) or ""
 
     # ---------- Transições ----------
-    def _pick_state(self, a):
-        if a.see_enemy():                                # viu inimigo → Attack
+    def _pick_state(self, game_ai):
+        
+        if game_ai.see_enemy() and game_ai.game_time_ticks >= self._attack_cooldown_until:  # viu inimigo e não está em cooldown
             self.state = "Attack"
             return
-        if a.look_mode_active():                         # ainda procurando
+            
+        # se está no modo look, mantém até esgotar giros ou achar inimigo
+        if self._look_mode:
             self.state = "LookForOponent"
             return
-        if a.hear_steps() and a.game_time_ticks >= self._look_cooldown_until:  # ouviu steps e não está em cooldown
-            a.start_look_mode()
+
+        # dispara look-mode se ouvir passos e não estiver em cooldown
+        if game_ai.hear_steps() and game_ai.game_time_ticks >= self._look_cooldown_until:
+            self._look_mode = True
+            self._look_turns = 0
             self.state = "LookForOponent"
             return
+        
         self.state = "Exploration"                       # fallback
 
     # ---------- Handlers ----------
-    def _attack(self, a):
-        if not a.see_enemy():                            # perdeu alvo
-            return ""                                    # volta p/ Exploration
-        
-        dist = a.enemy_dist()
-        
-        # Implementa as regras de combate baseadas na distância Manhattan
-        if 10 >= dist >= 8:                              # 10-8: 1 tiro + move forward
-            if a.energy >= 10:  # Verifica se tem energia para atirar
-                return "atacar"
-            else:
-                return "andar"
-        elif 8 > dist >= 6:                              # 8-6: 2 tiros + move forward  
-            if a.energy >= 20:  # Precisa de energia para 2 tiros
-                return "atacar"  # Por simplicidade, fazemos 1 tiro por vez
-            else:
-                return "andar"
-        elif 6 > dist >= 3:                              # 6-3: 3 tiros, mantém posição
-            if a.energy >= 10:
-                return "atacar"
-            else:
-                return ""  # Mantém posição sem energia
-        elif 3 > dist >= 1:                              # 3-1: 4 tiros + move backward
-            if a.energy >= 10:
-                return "atacar"
-            else:
-                return "andar_re"
-        else:
-            return "andar"  # Fallback - se aproxima
-
-    def _look_for_oponent(self, a):
-        if a.see_enemy():                                # achou → Attack
-            self.state = "Attack"
+    def _attack(self, game_ai):
+        if game_ai.game_time_ticks < self._attack_cooldown_until:
             return ""
-        if a.look_step_done():                           # completou 3 giros/timeout
-            self._look_cooldown_until = a.game_time_ticks + 50  # Cooldown de 5 segundos (50 ticks)
-            return ""                                    # cai p/ Exploration
-        return "virar_direita"                           # gira procurando
+        if not game_ai.see_enemy():                            # perdeu alvo
+            return ""                                    # volta p/ Exploration
+        dist = game_ai.enemy_dist()
+        
+         # se sequência vazia, construí-la de acordo com a distância
+        if not self._attack_sequence:
+            dist = game_ai.enemy_dist()
+            if 10 >= dist >= 8:
+                # 1 tiro + move forward
+                self._attack_sequence = ["atacar", "mover_frente"]
+            elif 8 > dist >= 6:
+                # 2 tiros + move forward
+                self._attack_sequence = ["atacar", "atacar", "mover_frente"]
+            elif 6 > dist >= 3:
+                # 3 tiros, mantém posição
+                self._attack_sequence = ["atacar"] * 3
+            elif 3 > dist >= 1:
+                # 4 tiros + move backward
+                self._attack_sequence = ["atacar"] * 4 + ["mover_tras"]
+        # pega próxima ação
+        action = self._attack_sequence.pop(0)
+        # contador e cooldown após 10 tiros consecutivos
+        if action == "atacar":
+            self._attack_count += 1
+            if self._attack_count > 10:
+                self._attack_cooldown_until = game_ai.game_time_ticks + 10
+                return ""
+        return action
 
-    def _exploration(self, a):
+
+    def _look_for_oponent(self, game_ai):
+        # se avistar inimigo durante o look, interrompe e parte pra Attack
+        if game_ai.see_enemy():
+            self._look_mode = False      # desativa look-mode
+            self.state = "Attack"        # muda pra estado de ataque
+            return ""
+        
+        # contabiliza mais um giro procurando oponente
+        self._look_turns += 1
+        
+        # se já girou 3 vezes ou não ouve mais passos, encerra o look-mode
+        if self._look_turns >= 3 or not game_ai.hear_steps():
+            self._look_mode = False                                     # reset do look-mode
+            self._look_cooldown_until = game_ai.game_time_ticks + 50    # aplica cooldown de 5s
+            self.state = "Exploration"                                  # volta ao modo de exploração
+            return ""
+        
+        return "virar_direita"  # gira mais uma vez para a direita
+
+
+    def _exploration(self, game_ai):
         # Se já tem um caminho em andamento, continua seguindo
         if self._current_path:
             return self._follow_current_path()
         
         # Se chegou ao destino atual, limpa navegação
         if (self._current_target and 
-            a.player.x == self._current_target[0] and 
-            a.player.y == self._current_target[1]):
+            game_ai.player.x == self._current_target[0] and 
+            game_ai.player.y == self._current_target[1]):
             self._clear_navigation()
         
         # Escolhe novo destino aleatoriamente conforme percentuais especificados
@@ -106,26 +141,26 @@ class GameStateMachine:
         tgt = None
         
         if rand <= 2:  # 2% → bloco conhecido aleatório
-            known_coords = a.map_knowledge.get_known_coordinates(a.player.x, a.player.y, 0)
+            known_coords = game_ai.map_knowledge.get_known_coordinates(game_ai.player.x, game_ai.player.y, 0)
             tgt = random.choice(known_coords) if known_coords else None
         elif rand <= 5:  # 3% → bloco livre aleatório  
-            free_coords = a.map_knowledge.get_free_coordinates(a.player.x, a.player.y, 0)
+            free_coords = game_ai.map_knowledge.get_free_coordinates(game_ai.player.x, game_ai.player.y, 0)
             tgt = random.choice(free_coords) if free_coords else None
         elif rand <= 10:  # 5% → bloco conhecido com ≤10 de distância
-            known_coords = a.map_knowledge.get_known_coordinates(a.player.x, a.player.y, 10)
+            known_coords = game_ai.map_knowledge.get_known_coordinates(game_ai.player.x, game_ai.player.y, 10)
             tgt = random.choice(known_coords) if known_coords else None
         elif rand <= 20:  # 10% → bloco livre entre 5–15 de distância
-            free_coords = a.map_knowledge.get_free_coordinates(a.player.x, a.player.y, random.randint(5, 15))
+            free_coords = game_ai.map_knowledge.get_free_coordinates(game_ai.player.x, game_ai.player.y, random.randint(5, 15))
             tgt = random.choice(free_coords) if free_coords else None
         elif rand <= 35:  # 15% → bloco livre até 5 de distância
-            free_coords = a.map_knowledge.get_free_coordinates(a.player.x, a.player.y, 5)
+            free_coords = game_ai.map_knowledge.get_free_coordinates(game_ai.player.x, game_ai.player.y, 5)
             tgt = random.choice(free_coords) if free_coords else None
         else:  # resto → bloco livre mais próximo
-            tgt = a.map_knowledge.get_free_coordinate_nearest(a.player.x, a.player.y)
+            tgt = game_ai.map_knowledge.get_free_coordinate_nearest(game_ai.player.x, game_ai.player.y)
         
         # Se encontrou um alvo, calcula caminho e inicia navegação
         if tgt:
-            return self._navigate_to_target(a, tgt)
+            return self._navigate_to_target(game_ai, tgt)
         else:
             # Se não há alvo, gira para explorar
             return "virar_esquerda"
@@ -138,12 +173,12 @@ class GameStateMachine:
         self._current_target = None
     
     # Inicia a navegação para um novo destino.
-    def _navigate_to_target(self, a, target: Tuple[int, int]) -> str:
+    def _navigate_to_target(self, game_ai, target: Tuple[int, int]) -> str:
         self._current_target = target
         
         # Calcula caminho usando PathFinder
         path = self._path_finder.go_to(
-            a.player.x, a.player.y, a.dir, 
+            game_ai.player.x, game_ai.player.y, game_ai.dir, 
             target[0], target[1]
         )
         

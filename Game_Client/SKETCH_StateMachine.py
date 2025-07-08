@@ -1,8 +1,8 @@
 import random
 
 # Máquina de estados do bot (1 = mais alta prioridade → 7 = mais baixa)
-# 1) Evade         – se levar um tiro
-# 2) FindPotion    – energia < 30 e conhece poção
+# 1) Evade         – se levar um tiro (quando a observação “hit” for recebida)
+# 2) FindPotion    – energia < 30 e conhece poção (quando o status “energy” for < 30)
 # 3) FindGold      – ouro vai spawnar
 # 4) FindPotion    – energia < 50 e poção até 16 de Manhattan
 # 5) FindPotion    – energia < 100 e poção “monopólio” próxima
