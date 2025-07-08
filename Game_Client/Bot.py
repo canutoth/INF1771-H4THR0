@@ -15,7 +15,7 @@ import re
 class Bot():
     # ==================== CONFIGURAÇÕES DO BOT ====================
     botcolor = (149, 0, 255)        # Cor do bot (RGB)
-    name = "h4thr0_ev"                # Nome do bot
+    name = "h4thr0"                # Nome do bot
     host = "atari.icad.puc-rio.br"  # Endereço do servidor
     port = 8888                     # Porta do servidor
 
@@ -86,7 +86,6 @@ class Bot():
                         self.debug_manager.log_observation(cmd) # DEBUG
                     else:
                         self.gameAi.GetObservationsClean()  # =======================================>>>>> LIMPA OBSERVAÇÕES
-                        self.debug_manager.log_observation(cmd) # DEBUG
                 ######################################################        
                 elif cmd[0] ==  "s":
                     if len(cmd) > 1:

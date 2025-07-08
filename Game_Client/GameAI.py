@@ -27,6 +27,8 @@ class GameAI():
         self.debug_manager.set_map_knowledge(self.map_knowledge) # DEBUG/MAPA
         self.scoreboard_knowledge = scoreboard_knowledge # SCOREBOARD
         self.state_machine = GameStateMachine()  
+        self.memory = [None] # Memória do bot, guarda status a cada tick
+        self.gold_collected_last_tick = False
 
         # auxiliar STATEMACHINE
         self._enemy_dist: int | None = None
@@ -42,16 +44,28 @@ class GameAI():
         self.energy = energy
         self.debug_manager.log_status(x, y, dir, state, score, energy) #DEBUG
     
+    # Método para capturar o status do bot (histórico)
+    def _capture_status(self):
+        return {
+            "tick":           self.game_time_ticks,
+            "x":              self.player.x,
+            "y":              self.player.y,
+            "dir":            self.dir,
+            "state":          self.state,
+            "score":          self.score,
+            "energy":         self.energy
+        }
+    
     # Método para atualizar o tempo de jogo
     def SetGameTime(self, time: int):
         self.game_time_seconds = time
 
     # Método para incrementar os ticks a cada ciclo real
     def IncrementTick(self):
-        self.game_time_ticks += 1
-        # Atualiza timers de respawn de itens
-        self.map_knowledge.update_respawn_timers()
-
+        self.game_time_ticks += 1 # Atualiza o número de ticks
+        self.map_knowledge.update_respawn_timers() # Atualiza timers de respawn de itens
+        self.memory.append(self._capture_status()) # Captura o status atual do bot
+    
     # Retorna a posição relativa ao jogador: "frente", "atras", "esquerda" ou "direita", em x passos
     def NextPositionRelative(self, steps, direction):
         dir_map = {
@@ -80,8 +94,22 @@ class GameAI():
         self.map_knowledge.update(self.player.x, self.player.y, self.dir, o) # MAPA
 
         # Reseta a distância do inimigo no início de cada observação
-        # Será preenchida apenas se houver observação "enemy#"
         self._enemy_dist = None    
+
+        if self.gold_collected_last_tick:
+            print("Gold collected last tick, updating map knowledge.")  # DEBUG
+            self.gold_collected_last_tick = False
+            # Diferença de score entre tick atual e penúltimo na memória
+            prev_score = self.memory[self.game_time_ticks-1]['score']
+            diff = self.score - prev_score
+
+            if diff < 500:
+                # BlueLight#1 para variação de até 500 (anel)
+                self.map_knowledge.update(self.player.x, self.player.y, self.dir, ['blueLight#1'])  # MAPA
+            elif diff < 1000:
+                # BlueLight#2 para variação entre 500 e 1000 (moeda)
+                self.map_knowledge.update(self.player.x, self.player.y, self.dir, ['blueLight#2'])  # MAPA
+
         for s in o:
             # steps: há um inimigo próximo há até 2 passos de distância de manhatan
             if s == "steps": # Quando está ao lado
@@ -141,16 +169,16 @@ class GameAI():
         # Verifica se há ouro na posição atual e se pode ser pego
         if (self.map_knowledge.is_gold_here(self.player.x, self.player.y) and 
             self.map_knowledge.can_pick_item(self.player.x, self.player.y)):
-            # Registra que o item foi pego
-            self.map_knowledge.register_item_picked(self.player.x, self.player.y)
+            self.map_knowledge.register_item_picked(self.player.x, self.player.y) # Registra que o item foi pego
+            self.gold_collected_last_tick = True # Variável helper para informar a state machine o tipo de ouro
+
             return "pegar_ouro"
         
         # Verifica se há poção na posição atual e se pode ser pega
         if (self.map_knowledge.is_potion_here(self.player.x, self.player.y) and
             self.energy < 100 and
             self.map_knowledge.can_pick_item(self.player.x, self.player.y)):
-            # Registra que o item foi pego
-            self.map_knowledge.register_item_picked(self.player.x, self.player.y)
+            self.map_knowledge.register_item_picked(self.player.x, self.player.y) # Registra que o item foi pego
             return "pegar_powerup"
         
         return ""

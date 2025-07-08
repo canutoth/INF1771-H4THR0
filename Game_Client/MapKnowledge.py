@@ -1,4 +1,5 @@
 from typing import List, Tuple, Optional, Iterator, Dict
+import sys, time
 
 # CLASSE DO CONHECIMENTO DE MAPA
 # GUARDA E ATUALIZA INFORMAÇÕES DO LABIRINTO
@@ -491,15 +492,14 @@ class MapKnowledge:
                        (observations_changed and not trivial_observations))
         
         if should_print and self.last_x is not None:  
+            # limpa a tela e move o cursor 5 linhas pra baixo
+            sys.stdout.write("\033[2J\033[H")  # Limpa a tela e move o cursor para o topo
+            sys.stdout.flush()
             print("\n# =============================================== MAPA DO CONHECIMENTO ================================================")
             self.print_map(x, y, direction)
             print("# =====================================================================================================================\n")
 
     def print_map(self, player_x: int = None, player_y: int = None, player_direction: str = None) -> None:
-        # limpa a tela e move o cursor 5 linhas pra baixo
-        print("\033[2J"   # limpa tudo
-          "\033[5B", # move cursor 5 linhas pra baixo
-          end="")
         
         colors = {
             'yellow':  '\033[33m',
