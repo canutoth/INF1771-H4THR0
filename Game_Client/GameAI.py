@@ -20,10 +20,12 @@ class GameAI():
     map_knowledge = None # MAPA
     debug_manager = None  # DEBUG
     scoreboard_knowledge = None  # SCOREBOARD
+    bot = None  # BOT
 
-    def __init__(self, scoreboard_knowledge=None):
+    def __init__(self, bot = None ,scoreboard_knowledge=None):
+        self.bot = bot # BOT
         self.debug_manager = GameAIDebugManager() # DEBUG
-        self.map_knowledge = MapKnowledge() # MAPA
+        self.map_knowledge = MapKnowledge(bot) # MAPA
         self.debug_manager.set_map_knowledge(self.map_knowledge) # DEBUG/MAPA
         self.scoreboard_knowledge = scoreboard_knowledge # SCOREBOARD
         self.state_machine = GameStateMachine()  
@@ -34,6 +36,10 @@ class GameAI():
         self._enemy_dist: int | None = None
         self._last_steps_ts = -999
         self._last_hit_ts = -999
+
+        # PathFinder reutilizável
+        from PathFinder import create_path_finder
+        self.path_finder = create_path_finder(self.map_knowledge)
 
     # STATUS DO BOT
     def SetStatus(self, x: int, y: int, dir: str, state: str, score: int, energy: int):
@@ -97,7 +103,6 @@ class GameAI():
         self._enemy_dist = None    
 
         if self.gold_collected_last_tick:
-            print("Gold collected last tick, updating map knowledge.")  # DEBUG
             self.gold_collected_last_tick = False
             # Diferença de score entre tick atual e penúltimo na memória
             prev_score = self.memory[self.game_time_ticks-1]['score']
@@ -147,6 +152,8 @@ class GameAI():
             return md if md else ""
         # ---------- CONTROLE MANUAL (DEBUG) ----------
 
+        # 
+        
         # 1) Regra prioritária: pegar ouro/poção embaixo dos pés
         pickup = self._check_item_override()
         if pickup:
@@ -159,11 +166,40 @@ class GameAI():
     # ----------------- Helper API usada pela FSM -----------------
 
     # --- triggers ---
-    def see_enemy(self) -> bool:       return self._enemy_dist is not None
-    def enemy_dist(self) -> int:       return self._enemy_dist or 99
-    def hear_steps(self) -> bool:      return (self.game_time_ticks - self._last_steps_ts) <= 1
-    def take_hit(self) -> bool:      return (self.game_time_ticks - self._last_hit_ts) <= 1
+    def see_enemy(self):          return self._enemy_dist is not None
+    def enemy_dist(self):         return self._enemy_dist or 99
+    def hear_steps(self):         return (self.game_time_ticks - self._last_steps_ts) <= 1
+    def take_hit(self):           return (self.game_time_ticks - self._last_hit_ts) <= 1
+    def gold_spawning_soon(self): 
+        # Pega informações sobre items em cooldown
+        respawn_info = self.map_knowledge.get_respawn_info()
+        
+        # Se não há items em cooldown, retorna (False, None)
+        if not respawn_info:
+            return False, None
+        
+        # Filtra as posições onde há ouro e que estão prestes a ressurgir (<2s)
+        candidatos: list[tuple[tuple[int,int], int, int]] = []
+        for (x, y), ticks_rem in respawn_info.items():
+            if not self.map_knowledge.is_gold_here(x, y):
+                continue
 
+            est = self.path_finder.time_estimated_to_go(
+                self.player.x, self.player.y, self.dir, x, y
+            )
+            if ticks_rem - est <= 20: # Se o tempo restante é menor ou igual a 2 segundos (20 ticks)
+                reward = self.map_knowledge.get_item_reward(x, y) 
+                # (posição, tempo_restante – viagem, recompensa)
+                candidatos.append(((x, y), ticks_rem - est, reward))
+
+        if not candidatos:
+            return False, None # Não há ouro prestes a ressurgir
+
+        # Ordena: maior recompensa primeiro; em empate, menor tempo_restante
+        candidatos.sort(key=lambda c: (-c[2], c[1]))
+        melhor_pos = candidatos[0][0]
+        return True, melhor_pos
+        
     # --- pick-up override ---
     def _check_item_override(self) -> str:
         # Verifica se há ouro na posição atual e se pode ser pego

@@ -15,7 +15,7 @@ import re
 class Bot():
     # ==================== CONFIGURAÇÕES DO BOT ====================
     botcolor = (149, 0, 255)        # Cor do bot (RGB)
-    name = "h4thr0"                # Nome do bot
+    name = "h4thr0 10"                # Nome do bot
     host = "atari.icad.puc-rio.br"  # Endereço do servidor
     port = 8888                     # Porta do servidor
 
@@ -46,10 +46,11 @@ class Bot():
         self.debug_manager = BotDebugManager() # DEBUG   
         self.scoreboard_knowledge = ScoreboardKnowledge() # SCOREBOARD
         self.client = HandleClient()
-        self.gameAi = GameAI(self.scoreboard_knowledge) # =======================================>>>>> INSTANCIA GAME AI
+        self.gameAi = GameAI(self, self.scoreboard_knowledge) # =======================================>>>>> INSTANCIA GAME AI
         self.timer1 = Timer(self.thread_interval, self.timer1_Tick)
         self.client.append_cmd_handler(self.ReceiveCommand)
         self.client.append_chg_handler(self.SocketStatusChange)
+        self.processedObservations = False  
         while(not self.client.connect(self.host, self.port)):
             print("Conexão falhou... Tentando conectar em 5 segundos...")
             time.sleep(5)
@@ -262,10 +263,15 @@ class Bot():
     # Executa uma decisão da GameAI
     def DoDecision(self):
         
-        decision = self.gameAi.GetDecision()
-        self.sendDecision(decision)
-        self.client.sendRequestUserStatus()
-        self.client.sendRequestObservation()
+        if self.processedObservations:
+            decision = self.gameAi.GetDecision()
+            self.sendDecision(decision)
+            self.client.sendRequestUserStatus()
+            self.client.sendRequestObservation()
+            self.processedObservations = False  
+
+    def SetProcessedObservations(self, processed: bool):
+        self.processedObservations = processed
 
     # Função chamada periodicamente pelo timer para atualizar o status do jogo, processar mensagens e tomar decisões
     def timer1_Tick(self):

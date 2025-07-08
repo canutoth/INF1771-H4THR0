@@ -12,6 +12,9 @@ class MapKnowledge:
         [3] n_passagens: contador de passagens pelo bloco
         [4] certeza:     0 (desconhecido), 1 (certeza absoluta)
     """
+
+    RESPAWN_TICKS = 150 # 150 ticks = 15 segundos de respawn de itens
+
     #Tamanho do mapa, vai de (0,0) [esquerda superior] a (58,33) [direita inferior]
     WIDTH, HEIGHT = 59, 34
 
@@ -40,7 +43,10 @@ class MapKnowledge:
         "west":  (-1,  0)
     }
 
-    def __init__(self):
+    bot = None  # BOT
+    
+    def __init__(self, bot=None):
+        self.bot = bot # BOT
         default = [0, 0, 0, 0, 0]  # valores iniciais [safe, walk, percept, visits, certain]
         self.map: List[List[List[int]]] = [
             [default[:] for _ in range(self.HEIGHT)] for _ in range(self.WIDTH)
@@ -128,6 +134,8 @@ class MapKnowledge:
         # Se NÃO houver breeze nem flash, vizinhos são seguros 
         if not has_breeze and not has_flash:
             self._mark_adjacent_safe(x, y)
+
+        self.bot.SetProcessedObservations(True)  # Marca que as observações foram processadas
 
     # ------------------------------ [API PRINCIPAL] ------------------------------
     #      ------------------------------ [FIM] ------------------------------
@@ -429,7 +437,7 @@ class MapKnowledge:
     
     # Registra que um item foi pego na coordenada especificada, iniciando o timer de respawn de 300 ticks
     def register_item_picked(self, x: int, y: int) -> None:
-        self.item_respawn_timers[(x, y)] = 300
+        self.item_respawn_timers[(x, y)] = self.RESPAWN_TICKS
     
     # Atualiza os timers de respawn (deve ser chamado a cada tick)
     def update_respawn_timers(self) -> None:
@@ -453,6 +461,25 @@ class MapKnowledge:
     # Retorna informações sobre items em cooldown (para debug)
     def get_respawn_info(self) -> Dict[Tuple[int, int], int]:
         return self.item_respawn_timers.copy()
+
+    # Retorna o tipo de ouro na célula especificada
+    def get_gold_type(self, x: int, y: int) -> str | None:
+
+        percept = self.map[x][y][self.IDX_PERCEPT]
+        if percept & self.PERCEPT["moeda"]:
+            return 'coin'
+        if percept & self.PERCEPT["anel"]:
+            return 'ring'
+        return None
+    
+    # Retorna a recompensa por pegar um item na coordenada especificada
+    def get_item_reward(self, x: int, y: int) -> int:
+        percept = self.map[x][y][self.IDX_PERCEPT]
+        if percept & self.PERCEPT["moeda"]:
+            return 1000
+        if percept & self.PERCEPT["anel"]:
+            return 500
+        return 0 #Genérico, não tem certeza
     
     # Verifica se a coordenada é segura e andável
     def is_free(self, x: int, y: int) -> bool:
@@ -485,11 +512,7 @@ class MapKnowledge:
         direction_changed = (self.last_direction != direction)
         observations_changed = (self.last_observations != observations)
         
-        # Ignora mudanças para observações vazias ou "nenhum" se não houve mudança de posição/direção
-        trivial_observations = observations == ['nenhum'] or observations == []
-        
-        should_print = (position_changed or direction_changed or 
-                       (observations_changed and not trivial_observations))
+        should_print = (position_changed or direction_changed or observations_changed)
         
         if should_print and self.last_x is not None:  
             # limpa a tela e move o cursor 5 linhas pra baixo

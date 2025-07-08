@@ -31,11 +31,15 @@ class GameStateMachine:
             "esquerda/direita":  2
         }
 
+        # FindGold
+        self._gold_objective_position = None 
+
         self.handlers: Dict[str, Callable[[Any], str]] = {
             "Exploration":      self._exploration,
             "LookForOponent":   self._look_for_oponent,
             "Attack":           self._attack,
-            "Evade":            self._evade 
+            "Evade":            self._evade, 
+            "FindGold":         self._find_gold
         }
         
     # ---------- API pública ----------
@@ -50,15 +54,20 @@ class GameStateMachine:
         if self._last_hit_time is not None and game_ai.game_time_ticks - self._last_hit_time > 5:
             self._last_hit_time = None # Reseta o tempo do último hit após 5 ticks (tenta ir pra frente/trás primeiro)
             self._last_evade_axis = self.AXIS["nenhum"]  # Reseta lógica de evade
+
         # Se mudou de estado
         if prev != self.state:
+
+            # Se mudou de estado e estava em Exploration, limpa navegação
+            if prev == "FindGold":
+                self._clear_navigation()
 
             # Se mudou de estado e estava em Attack, reseta contagem e sequência
             if prev == "Attack":
                 self._attack_sequence.clear()
                 self._attack_count = 0
 
-            # Se mudou de estado e estava em Exploration, limpa cooldown
+            # Se mudou de estado e estava em Exploration, limpa navegação
             if prev == "Exploration":
                 self._clear_navigation()
 
@@ -72,6 +81,15 @@ class GameStateMachine:
             self.state = "Evade"
             self._last_hit_time = game_ai.game_time_ticks
             return
+        
+        # Se ouro conhecido está a <2s de tempo de distância sobrando de respawn -> FindGold
+        gold_spawning_soon = game_ai.gold_spawning_soon()
+        if gold_spawning_soon[0]:
+            self._gold_objective_position = gold_spawning_soon[1] # posição do ouro, recebe tuple[int,int]
+            self.state = "FindGold"
+            return
+         
+        # Se conhece ouro e está 500+ rounds sem pegar -> FindGold
 
         # Viu inimigo e não está em cooldown -> Attack
         if game_ai.see_enemy() and game_ai.game_time_ticks >= self._attack_cooldown_until:  
@@ -106,16 +124,28 @@ class GameStateMachine:
             dist = game_ai.enemy_dist()
             if 10 >= dist >= 8:
                 # 1 tiro + move forward
-                self._attack_sequence = ["atacar", "mover_frente"]
+                nx, ny = game_ai.NextPositionRelative(1, "frente")
+                if game_ai.map_knowledge.is_free(nx, ny):
+                  self._attack_sequence = ["atacar", "andar"]
+                else:
+                  self._attack_sequence = ["atacar"]
             elif 8 > dist >= 6:
                 # 2 tiros + move forward
-                self._attack_sequence = ["atacar", "atacar", "mover_frente"]
+                nx, ny = game_ai.NextPositionRelative(1, "frente")
+                if game_ai.map_knowledge.is_free(nx, ny):
+                  self._attack_sequence = ["atacar", "atacar", "andar"]
+                else:
+                  self._attack_sequence = ["atacar"]
             elif 6 > dist >= 3:
                 # 3 tiros, mantém posição
                 self._attack_sequence = ["atacar"] * 3
             elif 3 > dist >= 1:
                 # 4 tiros + move backward
-                self._attack_sequence = ["atacar"] * 4 + ["mover_tras"]
+                nx, ny = game_ai.NextPositionRelative(1, "atras")
+                if game_ai.map_knowledge.is_free(nx, ny):
+                    self._attack_sequence = ["atacar"] * 4 + ["andar_re"]
+                else:
+                    self._attack_sequence = ["atacar"]
         # pega próxima ação
         action = self._attack_sequence.pop(0)
         # contador e cooldown após 10 tiros consecutivos
@@ -224,6 +254,18 @@ class GameStateMachine:
             nx, ny = game_ai.NextPositionRelative(1, "direita")
             if game_ai.map_knowledge.is_free(nx, ny):
                 return "andar_re"     
+
+    def _find_gold(self, game_ai): 
+
+        # Se já tem um caminho em andamento, continua seguindo
+        if self._current_path:
+            return self._follow_current_path()
+        
+        # Se há um alvo atual, ele é o target de navegação
+        tgt = self._gold_objective_position
+        
+        # Faz a navegação para o alvo
+        return self._navigate_to_target(game_ai, tgt)
 
     # ---------- Sistema de Navegação ----------
 
