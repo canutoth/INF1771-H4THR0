@@ -7,9 +7,9 @@ class MapKnowledge:
     Cada célula contém:
         [0] seguro:      -1 (não), 0 (desconhecido), 1 (sim)
         [1] passável:    -1 (não), 0 (desconhecido), 1 (sim)
-        [2] percepção:    0-7 conforme tabela
-        [3] n_passagens:  contador de passagens pelo bloco
-        [4] certeza:      0 (desconhecido), 1 (certeza absoluta)
+        [2] percepção:   bit-flags (ver PERCEPT)
+        [3] n_passagens: contador de passagens pelo bloco
+        [4] certeza:     0 (desconhecido), 1 (certeza absoluta)
     """
     #Tamanho do mapa, vai de (0,0) [esquerda superior] a (58,33) [direita inferior]
     WIDTH, HEIGHT = 59, 34
@@ -17,17 +17,19 @@ class MapKnowledge:
     # Índices auxiliares
     IDX_SAFE, IDX_WALK, IDX_PERCEPT, IDX_VISITS, IDX_CERTAIN = range(5)
 
-    # Percepções   
+    # PERCEPÇÕES (bit-flags) ----------------------------------------------------
+    # trocado para flags; permite múltiplas percepções num mesmo bloco
     PERCEPT = {
+        "poço":          1 << 0,   # 1
+        "teleporter":    1 << 1,   # 2
+        "ouro":          1 << 2,   # 4
+        "anel":          1 << 3,   # 8
+        "moeda":         1 << 4,   # 16
+        "poçao":         1 << 5,   # 32
+        "bloquado":      1 << 6,   # 64
         "nenhum":        0,
-        "bloquado":      1,
-        "poço":          2,  
-        "teleporter":    3,
-        "ouro":          4,
-        "anel":          5,
-        "moeda":         6,
-        "poçao":         7
     }
+    # ------------------------------------------------------------------------
 
     # Vetores de deslocamento para pegar a célula à frente
     DIRECTION_VECTORS = {
@@ -95,21 +97,22 @@ class MapKnowledge:
                     tgt = self.map[nx][ny]
                     tgt[self.IDX_SAFE]     =  1
                     tgt[self.IDX_WALK]     = -1
-                    tgt[self.IDX_PERCEPT]  = self.PERCEPT["bloqueado"]
+                    # OR mantém outras flags
+                    tgt[self.IDX_PERCEPT]  |= self.PERCEPT["bloquado"]
 
             # ITENS
             elif obs.startswith("blueLight"): 
                 if "#" in obs:
                     typ = obs.split("#", 1)[1]
                     if typ == "1":
-                        cell[self.IDX_PERCEPT] = self.PERCEPT["anel"]
+                        cell[self.IDX_PERCEPT] |= self.PERCEPT["anel"]
                     elif typ == "2":
-                        cell[self.IDX_PERCEPT] = self.PERCEPT["moeda"]
+                        cell[self.IDX_PERCEPT] |= self.PERCEPT["moeda"]
                 else:
-                    cell[self.IDX_PERCEPT] = self.PERCEPT["ouro"]
+                    cell[self.IDX_PERCEPT] |= self.PERCEPT["ouro"]
 
             elif obs.startswith("redLight"):
-                cell[self.IDX_PERCEPT] = self.PERCEPT["poçao"]
+                cell[self.IDX_PERCEPT] |= self.PERCEPT["poçao"]
 
             # PERCEPÇÕES ADJACENTES
             elif obs == "breeze":
@@ -198,7 +201,7 @@ class MapKnowledge:
                 x, y = pos
                 # Marca definitivamente como certeza
                 if self.map[x][y][self.IDX_CERTAIN] == 0:  # só marca se ainda não for certo
-                    self.map[x][y][self.IDX_PERCEPT] = percept_code
+                    self.map[x][y][self.IDX_PERCEPT] |= percept_code
                     self.map[x][y][self.IDX_SAFE] = -1
                     self.map[x][y][self.IDX_WALK] = -1
                     self.map[x][y][self.IDX_CERTAIN] = 1  # marca como certeza
@@ -229,7 +232,7 @@ class MapKnowledge:
         certain_threats = []
         for x, y in adjacent_positions:
             cell = self.map[x][y]
-            if (cell[self.IDX_PERCEPT] == threat_percept and 
+            if ((cell[self.IDX_PERCEPT] & threat_percept) and 
                 cell[self.IDX_CERTAIN] == 1):
                 certain_threats.append((x, y))
         
@@ -241,10 +244,10 @@ class MapKnowledge:
             # Marca todas as posições adjacentes como seguras
             for adj_x, adj_y in adjacent_to_threat:
                 adj_cell = self.map[adj_x][adj_y]
-                adj_cell[self.IDX_SAFE] = 1  # marca como seguro
-                # Remove percepção da ameaça se houver
-                if adj_cell[self.IDX_PERCEPT] == threat_percept:
-                    adj_cell[self.IDX_PERCEPT] = 0  # remove percepção da ameaça
+                # só mexe se o vizinho tiver a MESMA ameaça
+                if adj_cell[self.IDX_PERCEPT] & threat_percept:
+                    adj_cell[self.IDX_SAFE] = 1  # marca como seguro
+                    adj_cell[self.IDX_PERCEPT] &= ~threat_percept  # remove percepção da ameaça
             
             # Remove das listas de possíveis ameaças
             for pseudo_set in target_list:
@@ -295,17 +298,17 @@ class MapKnowledge:
             if cell[self.IDX_SAFE] == 1:
                 continue  # não sobrescreve se já for considerado seguro
             
-            cell[self.IDX_PERCEPT] = percept_code 
+            cell[self.IDX_PERCEPT] |= percept_code 
 
     # Marca vizinhos como seguros, limpando marcas de poço/teleporter
     def _mark_adjacent_safe(self, x: int, y: int) -> None:
+        danger_flags = self.PERCEPT["poço"] | self.PERCEPT["teleporter"]
         for nx, ny in self._get_adjacent_positions(x, y):
             cell = self.map[nx][ny]
             # Define como seguro 
             cell[self.IDX_SAFE] = 1
             # Remove marcações de poço ou teleporter, se houver
-            if cell[self.IDX_PERCEPT] in (self.PERCEPT["poço"], self.PERCEPT["teleporter"]):
-                cell[self.IDX_PERCEPT] = 0
+            cell[self.IDX_PERCEPT] &= ~danger_flags
 
     # Itera sobre as células livres (seguras, não visitadas e sem percepção)
     def _iter_free_cells(
@@ -418,12 +421,12 @@ class MapKnowledge:
 
     # Verifica se há ouro na célula especificada
     def is_gold_here(self, x: int, y: int) -> bool:
-        return self.map[x][y][self.IDX_PERCEPT] in (
-            self.PERCEPT["ouro"], self.PERCEPT["anel"], self.PERCEPT["moeda"])
+        gold_flags = self.PERCEPT["ouro"] | self.PERCEPT["anel"] | self.PERCEPT["moeda"]
+        return bool(self.map[x][y][self.IDX_PERCEPT] & gold_flags)
     
-    # Verifica se há um poço na célula especificada
+    # Verifica se há uma poção na célula especificada
     def is_potion_here(self, x: int, y: int) -> bool:
-        return self.map[x][y][self.IDX_PERCEPT] == self.PERCEPT["poçao"]
+        return bool(self.map[x][y][self.IDX_PERCEPT] & self.PERCEPT["poçao"])
     
     
     # Registra que um item foi pego na coordenada especificada, iniciando o timer de respawn de 300 ticks
@@ -489,6 +492,11 @@ class MapKnowledge:
             print("# =====================================================================================================================\n")
 
     def print_map(self, player_x: int = None, player_y: int = None, player_direction: str = None) -> None:
+        # limpa a tela e move o cursor 5 linhas pra baixo
+        print("\033[2J"   # limpa tudo
+          "\033[5B", # move cursor 5 linhas pra baixo
+          end="")
+        
         colors = {
             'yellow':  '\033[33m',
             'blue':    '\033[34m',
@@ -496,6 +504,7 @@ class MapKnowledge:
             'cyan':    '\033[36m',
             'gray':    '\033[90m',
             'purple':  '\033[35m',
+            'magenta': '\033[95m',
             'black':   '\033[30m',
             'white':   '\033[37m',
             'green':   '\033[32m',
@@ -514,9 +523,10 @@ class MapKnowledge:
         legenda = (
             f"{colors['red']}X{colors['reset']}=Bloq. "
             f"{colors['purple']}°{colors['reset']}=Poço "
-            f"{colors['purple']}X{colors['reset']}=Poço CTZ "
+            f"{colors['purple']}X{colors['reset']}=Poço[ctz] "
             f"{colors['cyan']}/{colors['reset']}=Telep. "
-            f"{colors['cyan']}X{colors['reset']}=Telep. CTZ "
+            f"{colors['cyan']}X{colors['reset']}=Telep.[ctz] "
+            f"{colors['magenta']}Ø{colors['reset']}=Poço+Telep "
             f"{colors['yellow']}A{colors['reset']}=Anel "
             f"{colors['yellow']}M{colors['reset']}=Moeda "
             f"{colors['yellow']}O{colors['reset']}=Ouro "
@@ -542,35 +552,39 @@ class MapKnowledge:
                 # 1) bloqueado
                 elif walk == -1:
                     # Se também for poço, cor roxa (poço confirmado)
-                    if perc == self.PERCEPT["poço"]:
+                    if perc & self.PERCEPT["poço"]:
                         ch, color = "X ", 'purple'
                     # Se também for teleporter, cor ciano (teleporter confirmado)
-                    elif perc == self.PERCEPT["teleporter"]:
+                    elif perc & self.PERCEPT["teleporter"]:
                         ch, color = "X ", 'cyan'
                     else:
                         ch, color = "X ", 'red'
-                # 2) poço
-                elif perc == self.PERCEPT["poço"]:
+                # 2) combinação poço+teleporter (checa antes dos individuais)
+                elif perc & (self.PERCEPT["poço"] | self.PERCEPT["teleporter"]) == \
+                     (self.PERCEPT["poço"] | self.PERCEPT["teleporter"]):
+                    ch, color = "Ø ", 'magenta'
+                # 3) poço
+                elif perc & self.PERCEPT["poço"]:
                     ch, color = "° ", 'purple'  
-                # 3) teleporter
-                elif perc == self.PERCEPT["teleporter"]:
+                # 4) teleporter
+                elif perc & self.PERCEPT["teleporter"]:
                     ch, color = "/ ", 'cyan'  
-                # 4) anel
-                elif perc == self.PERCEPT["anel"]:
+                # 5) anel
+                elif perc & self.PERCEPT["anel"]:
                     ch, color = "A ", 'yellow'
-                # 5) moeda
-                elif perc == self.PERCEPT["moeda"]:
+                # 6) moeda
+                elif perc & self.PERCEPT["moeda"]:
                     ch, color = "M ", 'yellow'
-                # 6) ouro
-                elif perc == self.PERCEPT["ouro"]:
+                # 7) ouro
+                elif perc & self.PERCEPT["ouro"]:
                     ch, color = "O ", 'yellow'
-                # 7) poção
-                elif perc == self.PERCEPT["poçao"]:
+                # 8) poção
+                elif perc & self.PERCEPT["poçao"]:
                     ch, color = "P ", 'blue'
-                # 8) visitado sem percepção
+                # 9) visitado sem percepção
                 elif visits > 0:
                     ch, color = "* ", 'white'
-                # 9) não visitado
+                # 10) não visitado
                 else:
                     ch, color = "? ", 'black'
 
