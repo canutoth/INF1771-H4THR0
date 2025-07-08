@@ -64,8 +64,6 @@ class MapKnowledge:
     # ------------------------------ [API PRINCIPAL] ------------------------------
 
     def update(self, x: int, y: int, direction: str, observations: List[str]) -> None:
-        if not self._inside(x, y):
-            return
 
         # Verifica se deve fazer print automático
         self._check_auto_print(x, y, direction, observations)
@@ -75,14 +73,14 @@ class MapKnowledge:
         self.last_y = y
         self.last_direction = direction
         self.last_observations = observations[:]
+
+        # Pega a coordenada atual
         cell = self.map[x][y]
 
         # Marca passagem pelo bloco atual 
         cell[self.IDX_VISITS] += 1
-        if cell[self.IDX_SAFE] == 0:
-            cell[self.IDX_SAFE] = 1
-        if cell[self.IDX_WALK] == 0:
-            cell[self.IDX_WALK] = 1
+        cell[self.IDX_SAFE] = 1
+        cell[self.IDX_WALK] = 1
 
         # flags p/ saber se há brisa ou flash entre as observações
         has_breeze = False
@@ -95,9 +93,8 @@ class MapKnowledge:
                 nx, ny = self._front(x, y, direction)
                 if self._inside(nx, ny):
                     tgt = self.map[nx][ny]
-                    tgt[self.IDX_SAFE]     =  1
-                    tgt[self.IDX_WALK]     = -1
-                    # OR mantém outras flags
+                    tgt[self.IDX_SAFE] =  1
+                    tgt[self.IDX_WALK] = -1
                     tgt[self.IDX_PERCEPT]  |= self.PERCEPT["bloqueado"]
 
             # ITENS
