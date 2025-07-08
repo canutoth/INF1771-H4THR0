@@ -25,6 +25,7 @@ class GameStateMachine:
         # Evade
         self._last_hit_time = None
         self._last_evade_axis = 0   # 0 = nenhum, 1 = frente/trás ou 2 = esquerda/direita
+        self._evade_sequence: List[str] = []
         self.AXIS = {
             "nenhum": 0,
             "frente/trás": 1,  
@@ -52,6 +53,7 @@ class GameStateMachine:
         self._pick_state(game_ai)
 
         if self._last_hit_time is not None and game_ai.game_time_ticks - self._last_hit_time > 5:
+            self._evade_sequence.clear()
             self._last_hit_time = None # Reseta o tempo do último hit após 5 ticks (tenta ir pra frente/trás primeiro)
             self._last_evade_axis = self.AXIS["nenhum"]  # Reseta lógica de evade
 
@@ -82,6 +84,8 @@ class GameStateMachine:
             self._last_hit_time = game_ai.game_time_ticks
             return
         
+        # Se energia conhecida e energia <30 -> FindPotion
+
         # Se ouro conhecido está a <2s de tempo de distância sobrando de respawn -> FindGold
         gold_spawning_soon = game_ai.gold_spawning_soon()
         if gold_spawning_soon[0]:
@@ -89,6 +93,10 @@ class GameStateMachine:
             self.state = "FindGold"
             return
          
+        # Se energia conhecida e energia <50 e alguma energia até 15 manhattan -> FindPotion
+
+        # Se energia conhecida está a <2s de tempo de distância sobrando de respawn e a distancia até 15 manhattam -> FindPotion
+
         # Se conhece ouro e está 500+ rounds sem pegar -> FindGold
 
         # Viu inimigo e não está em cooldown -> Attack
@@ -222,38 +230,44 @@ class GameStateMachine:
         if not game_ai.take_hit():
             return ""
 
-        # Ir para frente/tras
-        if self._last_evade_axis == self.AXIS["nenhum"] or self._last_evade_axis == self.AXIS["esquerda/direita"]: 
-            self._last_evade_axis = self.AXIS["frente/trás"]
+        if not self._evade_sequence:
+            # Ir para frente/tras
+            if self._last_evade_axis == self.AXIS["nenhum"] or self._last_evade_axis == self.AXIS["esquerda/direita"]: 
+                self._last_evade_axis = self.AXIS["frente/trás"]
 
-            #Verifica se é possivel ir pra frente/trás
-            #Se sim, vai pra frente/trás
+                #Verifica se é possivel ir pra frente/trás
+                #Se sim, vai pra frente/trás
 
-            # Pode ir pra frente?
-            nx, ny = game_ai.NextPositionRelative(1, "frente")
-            if game_ai.map_knowledge.is_free(nx, ny):
-                return "andar"
+                # Pode ir pra frente?
+                nx, ny = game_ai.NextPositionRelative(1, "frente")
+                if game_ai.map_knowledge.is_free(nx, ny):
+                    self._evade_sequence = ["andar"]
+                
+                # Pode ir pra trás?
+                nx, ny = game_ai.NextPositionRelative(1, "atras")
+                if game_ai.map_knowledge.is_free(nx, ny):
+                    self._evade_sequence = ["andar_re"]
             
-            # Pode ir pra trás?
-            nx, ny = game_ai.NextPositionRelative(1, "atras")
-            if game_ai.map_knowledge.is_free(nx, ny):
-                return "andar_re"
-        
-        # Ir para esquerda/direita
-        if self._last_evade_axis == self.AXIS["frente/trás"]: 
-            self._last_evade_axis = self.AXIS["esquerda/direita"]
+            # Ir para esquerda/direita
+            if self._last_evade_axis == self.AXIS["frente/trás"]: 
+                self._last_evade_axis = self.AXIS["esquerda/direita"]
 
-            #Verifica se é possivel ir pra esquerda/direita
-            #Se sim, vai pra esquerda/direita
+                #Verifica se é possivel ir pra esquerda/direita
+                #Se sim, vai pra esquerda/direita
 
-            # Pode ir pra esquerda?
-            nx, ny = game_ai.NextPositionRelative(1, "esquerda")
-            if game_ai.map_knowledge.is_free(nx, ny):
-                return "andar"
-            # Pode ir pra direita?
-            nx, ny = game_ai.NextPositionRelative(1, "direita")
-            if game_ai.map_knowledge.is_free(nx, ny):
-                return "andar_re"     
+                # Pode ir pra esquerda?
+                nx, ny = game_ai.NextPositionRelative(1, "esquerda")
+                if game_ai.map_knowledge.is_free(nx, ny):
+                    self._evade_sequence = ["virar_esquerda", "andar"]
+                # Pode ir pra direita?
+                nx, ny = game_ai.NextPositionRelative(1, "direita")
+                if game_ai.map_knowledge.is_free(nx, ny):
+                    self._evade_sequence = ["virar_direita", "andar"]  
+
+                # pega próxima ação
+                
+        action = self._evade_sequence.pop(0)
+        return action  
 
     def _find_gold(self, game_ai): 
 
