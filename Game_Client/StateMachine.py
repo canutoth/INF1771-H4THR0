@@ -98,6 +98,18 @@ class GameStateMachine:
             self.state = "FindPotion"
             return
 
+        # Está no modo look -> LookForOponent
+        if self._look_mode:
+            self.state = "LookForOponent"
+            return
+
+        # Ouviu passos e não está em cooldown -> LookForOponent
+        if game_ai.hear_steps() and game_ai.game_time_ticks >= self._look_cooldown_until:
+            self._look_mode = True
+            self._look_turns = 0
+            self.state = "LookForOponent"
+            return
+        
         # Viu inimigo e não está em cooldown -> Attack
         if game_ai.see_enemy() and game_ai.game_time_ticks >= self._attack_cooldown_until:  
             self.state = "Attack"
@@ -131,18 +143,6 @@ class GameStateMachine:
                 self._gold_objective_position = have_gold[1] # posição da poçao, recebe tuple[int,int]
                 self.state = "FindGold"
                 return
-        
-        # Está no modo look -> LookForOponent
-        if self._look_mode:
-            self.state = "LookForOponent"
-            return
-
-        # Ouviu passos e não está em cooldown -> LookForOponent
-        if game_ai.hear_steps() and game_ai.game_time_ticks >= self._look_cooldown_until:
-            self._look_mode = True
-            self._look_turns = 0
-            self.state = "LookForOponent"
-            return
         
         # Se não está em nenhum outro estado -> Exploration
         self.state = "Exploration"                      

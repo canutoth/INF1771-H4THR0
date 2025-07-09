@@ -15,7 +15,7 @@ import re
 class Bot():
     # ==================== CONFIGURAÇÕES DO BOT ====================
     botcolor = (149, 0, 255)        # Cor do bot (RGB)
-    name = "h4thr0"                # Nome do bot
+    name = "H4THR0_"                # Nome do bot
     host = "atari.icad.puc-rio.br"  # Endereço do servidor
     port = 8888                     # Porta do servidor
 
