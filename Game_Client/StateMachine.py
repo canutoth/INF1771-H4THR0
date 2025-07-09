@@ -35,6 +35,9 @@ class GameStateMachine:
         # FindGold
         self._gold_objective_position = None 
 
+        # FindPotion
+        self._potion_objective_position = None 
+
         self.handlers: Dict[str, Callable[[Any], str]] = {
             "Exploration":      self._exploration,
             "LookForOponent":   self._look_for_oponent,
@@ -60,8 +63,11 @@ class GameStateMachine:
 
         # Se mudou de estado
         if prev != self.state:
+            # Se mudou de estado e estava em FindPotion, limpa navegação
+            if prev == "FindPotion":
+                self._clear_navigation()
 
-            # Se mudou de estado e estava em Exploration, limpa navegação
+            # Se mudou de estado e estava em FindGold, limpa navegação
             if prev == "FindGold":
                 self._clear_navigation()
 
@@ -85,25 +91,46 @@ class GameStateMachine:
             self._last_hit_time = game_ai.game_time_ticks
             return
         
-        # Se energia conhecida e energia <30 -> FindPotion
+        # Se poçao conhecida e energia <=30 -> FindPotion
+        have_potion = game_ai.have_potion()
+        if have_potion[0] and game_ai.energy_leq(30):  
+            self._potion_objective_position = have_potion[1] # posição da poçao, recebe tuple[int,int]
+            self.state = "FindPotion"
+            return
 
         # Viu inimigo e não está em cooldown -> Attack
         if game_ai.see_enemy() and game_ai.game_time_ticks >= self._attack_cooldown_until:  
             self.state = "Attack"
             return
             
-        # Se ouro conhecido está a <2s de tempo de distância sobrando de respawn -> FindGold
+        # Se ouro disponível conhecido está a <2s de tempo de distância sobrando de respawn -> FindGold
         gold_spawning_soon = game_ai.gold_spawning_soon()
         if gold_spawning_soon[0]:
             self._gold_objective_position = gold_spawning_soon[1] # posição do ouro, recebe tuple[int,int]
             self.state = "FindGold"
             return
         
-        # Se energia conhecida e energia <50 e alguma energia até 15 manhattan -> FindPotion
+        # Se poçao disponível conhecida e energia <50 e alguma energia até 15 manhattan -> FindPotion
+        have_potion = game_ai.have_potion()
+        if have_potion[0] and game_ai.energy_leq(50):  
+            self._potion_objective_position = have_potion[1] # posição da poçao, recebe tuple[int,int]
+            self.state = "FindPotion"
+            return
 
-        # Se energia conhecida está a <2s de tempo de distância sobrando de respawn e a distancia até 15 manhattam -> FindPotion
-
-        # Se conhece ouro e está 500+ rounds sem pegar -> FindGold
+        # Se poçao disponível conhecida está a <2s de tempo de distância sobrando de respawn, energia <=90 e a distancia até 10 manhattam -> FindPotion
+        potion_spawning_soon = game_ai.potion_spawning_soon()
+        if potion_spawning_soon[0]:
+            self._potion_objective_position = potion_spawning_soon[1] # posição da poçao, recebe tuple[int,int]
+            self.state = "FindPotion"
+            return
+        
+        # Se conhece ouro disponível e está 500+ rounds sem aumentar score -> FindGold
+        if not game_ai.scored_recently(500):
+            have_gold = game_ai.have_gold()
+            if have_gold[0]:  
+                self._gold_objective_position = have_gold[1] # posição da poçao, recebe tuple[int,int]
+                self.state = "FindGold"
+                return
         
         # Está no modo look -> LookForOponent
         if self._look_mode:
@@ -201,20 +228,20 @@ class GameStateMachine:
         rand = random.randint(1, 100)
         tgt = None
         
-        if rand <= 2:  # 2% → bloco conhecido aleatório
+        if rand <= 1:  # 1% → bloco conhecido aleatório
             known_coords = game_ai.map_knowledge.get_known_coordinates(game_ai.player.x, game_ai.player.y, 0)
             tgt = random.choice(known_coords) if known_coords else None
-        elif rand <= 5:  # 3% → bloco livre aleatório  
+        elif rand <= 3:  # 2% → bloco livre aleatório  
             free_coords = game_ai.map_knowledge.get_free_coordinates(game_ai.player.x, game_ai.player.y, 0)
             tgt = random.choice(free_coords) if free_coords else None
-        elif rand <= 10:  # 5% → bloco conhecido com ≤10 de distância
-            known_coords = game_ai.map_knowledge.get_known_coordinates(game_ai.player.x, game_ai.player.y, 10)
+        elif rand <= 8:  # 5% → bloco conhecido com ≤5 de distância
+            known_coords = game_ai.map_knowledge.get_known_coordinates(game_ai.player.x, game_ai.player.y, 5)
             tgt = random.choice(known_coords) if known_coords else None
-        elif rand <= 20:  # 10% → bloco livre entre 5–15 de distância
-            free_coords = game_ai.map_knowledge.get_free_coordinates(game_ai.player.x, game_ai.player.y, random.randint(5, 15))
+        elif rand <= 16:  # 8% → bloco livre entre 5–10 de distância
+            free_coords = game_ai.map_knowledge.get_free_coordinates(game_ai.player.x, game_ai.player.y, random.randint(5, 10))
             tgt = random.choice(free_coords) if free_coords else None
-        elif rand <= 35:  # 15% → bloco livre até 5 de distância
-            free_coords = game_ai.map_knowledge.get_free_coordinates(game_ai.player.x, game_ai.player.y, 5)
+        elif rand <= 30:  # 14% → bloco livre até 3 de distância
+            free_coords = game_ai.map_knowledge.get_free_coordinates(game_ai.player.x, game_ai.player.y, 3)
             tgt = random.choice(free_coords) if free_coords else None
         else:  # resto → bloco livre mais próximo
             tgt = game_ai.map_knowledge.get_free_coordinate_nearest(game_ai.player.x, game_ai.player.y)

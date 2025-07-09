@@ -31,6 +31,7 @@ class GameAI():
         self.state_machine = GameStateMachine()  
         self.memory = [None] # Memória do bot, guarda status a cada tick
         self.gold_collected_last_tick = False
+        self.last_gold_pos = None  # Posição do ouro coletado na última vez
 
         # auxiliar STATEMACHINE
         self._enemy_dist: int | None = None
@@ -118,16 +119,18 @@ class GameAI():
 
         if self.gold_collected_last_tick:
             self.gold_collected_last_tick = False
-            # Diferença de score entre tick atual e penúltimo na memória
+            gold_pos = self.last_gold_pos # Recupera a posição onde o ouro foi coletado
             prev_score = self.memory[self.game_time_ticks-1]['score']
             diff = self.score - prev_score
 
             if diff < 500:
                 # BlueLight#1 para variação de até 500 (anel)
-                self.map_knowledge.update(self.player.x, self.player.y, self.dir, ['blueLight#1'])  # MAPA
+                self.map_knowledge.update(gold_pos[0], gold_pos[1], self.dir, ['blueLight#1'])  # MAPA
             elif diff < 1000:
                 # BlueLight#2 para variação entre 500 e 1000 (moeda)
-                self.map_knowledge.update(self.player.x, self.player.y, self.dir, ['blueLight#2'])  # MAPA
+                self.map_knowledge.update(gold_pos[0], gold_pos[1], self.dir, ['blueLight#2'])  # MAPA
+
+            self.last_gold_pos = None  # Limpa a posição do ouro coletado
 
         for s in o:
             # steps: há um inimigo próximo há até 2 passos de distância de manhatan
@@ -184,7 +187,11 @@ class GameAI():
     def enemy_dist(self):         return self._enemy_dist or 99 # Distância do inimigo, ou 99 se não houver inimigo
     def hear_steps(self):         return (self.game_time_ticks - self._last_steps_ts) <= 1 # Se o bot ouviu passos recentemente (dentro de 1 tick)
     def take_hit(self):           return (self.game_time_ticks - self._last_hit_ts) <= 1 # Se o bot levou dano recentemente (dentro de 1 tick)
+    def get_last_score_gain_tick(self): return self._last_time_score_earned # Último tick em que houve ganho de pontos
+    def scored_recently(self, ticks_threshold=10): return (self.game_time_ticks - self._last_time_score_earned) <= ticks_threshold # Se o bot ganhou pontos recentemente (dentro de ticks_threshold ticks)
     def energy_leq(self, value: int) -> bool: return self.energy <= value  # Retorna True se a energia do robô é igual ou menor que o valor passado
+    def have_potion(self): return self.map_knowledge.get_best_item("pocao") # Retorna Tuple[bool, Optional[Tuple[int, int]]] com True se há poçao disponível, ou False se não há e retorna a posição da melhor poçao disponível
+    def have_gold(self): return self.map_knowledge.get_best_item("ouro") # Retorna Tuple[bool, Optional[Tuple[int, int]]] com True se há ouro disponível, ou False se não há e retorna a posição do melhor ouro disponível
     def gold_spawning_soon(self): 
         # Pega informações sobre items em cooldown
         respawn_info = self.map_knowledge.get_respawn_info()
@@ -214,9 +221,44 @@ class GameAI():
         candidatos.sort(key=lambda c: (-c[2], c[1]))
         melhor_pos = candidatos[0][0]
         return True, melhor_pos
-    def get_last_score_gain_tick(self): return self._last_time_score_earned # Último tick em que houve ganho de pontos
-    def scored_recently(self, ticks_threshold=10): return (self.game_time_ticks - self._last_time_score_earned) <= ticks_threshold # Se o bot ganhou pontos recentemente (dentro de ticks_threshold ticks)
    
+    def potion_spawning_soon(self):
+        # Sem utilidade se já estamos com energia cheia
+        if self.energy >= 100:
+            return False, None
+
+        respawn_info = self.map_knowledge.get_respawn_info()
+        if not respawn_info:
+            return False, None
+
+        candidates: list[tuple[tuple[int, int], int]] = []
+        for (x, y), ticks_left in respawn_info.items():
+            if not self.map_knowledge.is_potion_here(x, y):
+                continue
+
+            travel = self.path_finder.time_estimated_to_go(
+                self.player.x, self.player.y, self.dir, x, y
+            )
+
+            # Só interessa se reaparecerá até 2 s depois que chegarmos
+            if ticks_left - travel <= 20:
+                # (pos, ticks_restantes – viagem)
+                candidates.append(((x, y), ticks_left - travel))
+
+        if not candidates:
+            return False, None
+
+        # Prioriza a que volta primeiro (menor diff ticks_left – travel)
+        candidates.sort(key=lambda c: c[1])
+        best_pos = candidates[0][0]
+
+        # Descarta se distância Manhattan > 10 (regra de negócio)   
+        dist = abs(best_pos[0] - self.player.x) + abs(best_pos[1] - self.player.y)
+        if dist > 10:
+            return False, None
+
+        return True, best_pos
+    
     # --- pick-up override ---
     def _check_item_override(self) -> str:
         # Verifica se há ouro na posição atual e se pode ser pego
@@ -224,6 +266,7 @@ class GameAI():
             self.map_knowledge.can_pick_item(self.player.x, self.player.y)):
             self.map_knowledge.register_item_picked(self.player.x, self.player.y) # Registra que o item foi pego
             self.gold_collected_last_tick = True # Variável helper para informar a state machine o tipo de ouro
+            self.last_gold_pos = (self.player.x, self.player.y)  # Salva a posição do ouro coletado
 
             return "pegar_ouro"
         

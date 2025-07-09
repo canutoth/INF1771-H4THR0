@@ -352,7 +352,10 @@ class MapKnowledge:
         # grava o tick em que spawnou
         self.item_spawn_timestamps[(x, y)] = self.game_ai.game_time_ticks
 
-
+    # função de normalização para [0..1]
+    def _normalize(self, v, mn, mx):
+        return 0.0 if mx == mn else (v - mn) / (mx - mn)
+    
     # ------------------------------ [MÉTODOS AUXILIARES INTERNOS] ------------------------------
     #           ------------------------------ [FIM] ------------------------------
     # ------------------------------ [MÉTODOS AUXILIARES INTERNOS] ------------------------------
@@ -491,30 +494,29 @@ class MapKnowledge:
         if percept & self.PERCEPT["anel"]:
             return 500
         return 0 #Genérico, não tem certeza
-    
-
-    # Retorna a coordenada do melhor item respawnado do tipo 'potion' ou 'gold'
-    # Pondera igualmente distância Manhattan e tempo desde o respawn, para 'gold', considera também o valor do item (moedas valem mais que anéis).
-    def get_best_item(self, item_type: str) -> Optional[Tuple[int, int]]:
+        
+    # Retorna a coordenada do melhor item respawnado do tipo 'pocao' ou 'ouro'
+    # Pondera igualmente distância Manhattan e tempo desde o respawn, para 'ouro', considera também o valor do item (moedas valem mais que anéis).
+    def get_best_item(self, item_type: str) -> Tuple[bool, Optional[Tuple[int, int]]]:
         
         # obtém tick atual e posição do jogador
         current_tick = self.game_ai.game_time_ticks
         px, py = self.game_ai.player.x, self.game_ai.player.y
 
         # coleta bruta de candidatos:
-        # para 'potion': (x, y, dist, age)
-        # para 'gold':   (x, y, dist, age, reward)
+        # para 'pocao': (x, y, dist, age)
+        # para 'ouro':   (x, y, dist, age, reward)
         raw = []
         for (x, y), spawn_tick in self.item_spawn_timestamps.items():
             age  = current_tick - spawn_tick           # tempo desde o spawn em ticks
             dist = abs(x - px) + abs(y - py)            # distância Manhattan
-            if item_type == "potion" and self.is_potion_here(x, y):
+            if item_type == "pocao" and self.is_potion_here(x, y):
                 raw.append((x, y, dist, age))
-            elif item_type == "gold" and self.is_gold_here(x, y):
-                reward = self.get_item_reward(x, y)     # 1000 para coin, 500 para ring
+            elif item_type == "ouro" and self.is_gold_here(x, y):
+                reward = self.get_item_reward(x, y)     # 1000 para moeda, 500 para anel
                 raw.append((x, y, dist, age, reward))
         if not raw:
-            return None
+            return False, None
 
         # extrai extremos para normalização
         dists = [r[2] for r in raw]
@@ -522,19 +524,15 @@ class MapKnowledge:
         min_d, max_d = min(dists), max(dists)
         min_a, max_a = min(ages),  max(ages)
 
-        # função de normalização para [0..1]
-        def normalize(v, mn, mx):
-            return 0.0 if mx == mn else (v - mn) / (mx - mn)
-
         best = None
         best_score = float('inf')
         for entry in raw:
             x, y, dist, age = entry[:4]
-            nd = normalize(dist, min_d, max_d)         # distância normalizada
-            na = normalize(age,  min_a, max_a)         # idade normalizada
+            nd = self._normalize(dist, min_d, max_d)         # distância normalizada
+            na = self._normalize(age,  min_a, max_a)         # idade normalizada
             score = (nd + na) / 2                      # média igualitária
 
-            if item_type == "gold":
+            if item_type == "ouro":
                 reward = entry[4] / 1000               # normaliza reward para [0..1]
                 # ajusta: quanto maior reward, menor o score final
                 score = (score + (1 - reward)) / 2
@@ -543,7 +541,7 @@ class MapKnowledge:
             if score < best_score:
                 best_score, best = score, (x, y)
 
-        return best
+        return True, best
 
     # Verifica se a coordenada é segura e andável
     def is_free(self, x: int, y: int) -> bool:
