@@ -177,34 +177,8 @@ class GameAI():
             return pickup
         
         # 2) Delega à FSM simplificada
-        action = self.state_machine.next_action(self)
-        if action == "andar":
-            #verifica se tem ouro na posição atual
-            _check_item_override = self._check_item_override()
-            if _check_item_override:
-                return _check_item_override
-            # gold_flags = self.map_knowledge.PERCEPT["ouro"] | self.map_knowledge.PERCEPT["anel"] | self.map_knowledge.PERCEPT["moeda"]
-            # if (self.map_knowledge.map[self.player.x][self.player.y][self.map_knowledge.IDX_PERCEPT] & gold_flags):
-            #     # Se há ouro na posição atual, pega o ouro
-            #     self.map_knowledge.register_item_picked(self.player.x, self.player.y)   
-            #     self.gold_collected_last_tick = True  # Variável helper para informar a state machine o tipo de ouro
-            #     self.last_gold_pos = (self.player.x, self.player.y)  # Salva a posição do ouro coletado
-            #     return "pegar_ouro"
-            #se posicao relativa for "frente", andar para frente
-            next_pos = self.NextPositionRelative(1, "frente")
-            # Verifica se a próxima posição tem poço ou teleporter
-            if self.map_knowledge.is_safe(next_pos[0], next_pos[1]):
-                return "andar"
-            else:
-                # Se não é seguro, gira para procurar direção segura
-                # Limpa navegação atual da state machine
-               # print("Direção não segura, girando para encontrar direção segura.")
-                self.state_machine._clear_navigation()
-              #  print("limpando navegação atual da state machine.")
-                return "virar_direita"
-        
-        # Retorna a ação determinada pela state machine
-        return action if action else ""
+        return self.state_machine.next_action(self)
+
 
     # ----------------- Helper API usada pela FSM -----------------
 
@@ -226,7 +200,7 @@ class GameAI():
         if not respawn_info:
             return False, None
         
-        # Filtra as posições onde há ouro e que estão prestes a ressurgir
+        # Filtra as posições onde há ouro e que estão prestes a ressurgir (<2s)
         candidatos: list[tuple[tuple[int,int], int, int]] = []
         for (x, y), ticks_rem in respawn_info.items():
             if not self.map_knowledge.is_gold_here(x, y):
@@ -235,9 +209,7 @@ class GameAI():
             est = self.path_finder.time_estimated_to_go(
                 self.player.x, self.player.y, self.dir, x, y
             )
-            # Só vai se o tempo for ideal: chegará entre 0-5 ticks após o respawn
             if ticks_rem - est <= 20: # Se o tempo restante é menor ou igual a 2 segundos (20 ticks)
-
                 reward = self.map_knowledge.get_item_reward(x, y) 
                 # (posição, tempo_restante – viagem, recompensa)
                 candidatos.append(((x, y), ticks_rem - est, reward))
@@ -247,7 +219,6 @@ class GameAI():
 
         # Ordena: maior recompensa primeiro; em empate, menor tempo_restante
         candidatos.sort(key=lambda c: (-c[2], c[1]))
-
         melhor_pos = candidatos[0][0]
         return True, melhor_pos
    
@@ -269,17 +240,16 @@ class GameAI():
                 self.player.x, self.player.y, self.dir, x, y
             )
 
-            # Só vai se chegará no momento certo (entre 5 ticks antes e 5 após respawn)
-            time_diff = ticks_left - travel
-            if -5 <= time_diff <= 5:
-                # (pos, diferença temporal)
-                candidates.append(((x, y), time_diff))
+            # Só interessa se reaparecerá até 2 s depois que chegarmos
+            if ticks_left - travel <= 20:
+                # (pos, ticks_restantes – viagem)
+                candidates.append(((x, y), ticks_left - travel))
 
         if not candidates:
             return False, None
 
-        # Prioriza quem chega mais próximo do momento do respawn
-        candidates.sort(key=lambda c: abs(c[1]))
+        # Prioriza a que volta primeiro (menor diff ticks_left – travel)
+        candidates.sort(key=lambda c: c[1])
         best_pos = candidates[0][0]
 
         # Descarta se distância Manhattan > 10 (regra de negócio)   
