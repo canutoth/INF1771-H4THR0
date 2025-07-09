@@ -373,7 +373,7 @@ class MapKnowledge:
             column = []
             for y in range(self.HEIGHT):
                 cell = self.map[x][y]
-                is_passable = (cell[self.IDX_SAFE] == 1 and cell[self.IDX_WALK] != -1) # Seguro e não bloqueado
+                is_passable = (cell[self.IDX_SAFE] == 1 and cell[self.IDX_WALK] != -1 and cell[self.IDX_PERCEPT] == 0) # Seguro e não bloqueado
                 column.append(1 if is_passable else 0)
             safe_map.append(column)
         return safe_map
