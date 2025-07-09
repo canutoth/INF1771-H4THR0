@@ -550,7 +550,7 @@ class MapKnowledge:
         if not self._inside(x, y):
             return False
         cell = self.map[x][y]
-        return cell[self.IDX_SAFE] == 1 and cell[self.IDX_WALK] != 1
+        return cell[self.IDX_SAFE] == 1 and cell[self.IDX_WALK] != -1
     
     # ------------------------------ [MÉTODOS AUXILIARES EXTERNOS] ------------------------------
     #           ------------------------------ [FIM] ------------------------------

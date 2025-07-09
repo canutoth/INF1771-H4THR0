@@ -244,15 +244,15 @@ class GameStateMachine:
             free_coords = game_ai.map_knowledge.get_free_coordinates(game_ai.player.x, game_ai.player.y, 10)
             tgt = random.choice(free_coords) if free_coords else None
 
-        # Ir para bloco livre mais próximo (20%)
-        elif rand <= 30:  # 20% → bloco livre mais próximo
+        # Ir para bloco livre mais próximo (40%)
+        elif rand <= 50:  # 40% → bloco livre mais próximo
             tgt = game_ai.map_knowledge.get_free_coordinate_nearest(game_ai.player.x, game_ai.player.y)
         
-        # Follow straight line for 3-15 blocks (random) or until blocked (front block not safe), then turn (50/50 right or left) (70%)
+        # Follow straight line for 3-15 blocks (random) or until blocked (front block not safe), then turn (50/50 right or left) (50%)
         else:
             nx, ny = game_ai.NextPositionRelative(1, "frente")
             if game_ai.map_knowledge.is_free(nx, ny):
-                num_steps = random.randint(3, 15)
+                num_steps = random.randint(5, 15)
                 # enfileira N vezes "andar"
                 self._current_path = ["andar"] * num_steps
             # após avançar, vira à esquerda ou direita
