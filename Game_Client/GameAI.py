@@ -183,7 +183,13 @@ class GameAI():
             _check_item_override = self._check_item_override()
             if _check_item_override:
                 return _check_item_override
-
+            # gold_flags = self.map_knowledge.PERCEPT["ouro"] | self.map_knowledge.PERCEPT["anel"] | self.map_knowledge.PERCEPT["moeda"]
+            # if (self.map_knowledge.map[self.player.x][self.player.y][self.map_knowledge.IDX_PERCEPT] & gold_flags):
+            #     # Se há ouro na posição atual, pega o ouro
+            #     self.map_knowledge.register_item_picked(self.player.x, self.player.y)   
+            #     self.gold_collected_last_tick = True  # Variável helper para informar a state machine o tipo de ouro
+            #     self.last_gold_pos = (self.player.x, self.player.y)  # Salva a posição do ouro coletado
+            #     return "pegar_ouro"
             #se posicao relativa for "frente", andar para frente
             next_pos = self.NextPositionRelative(1, "frente")
             # Verifica se a próxima posição tem poço ou teleporter
