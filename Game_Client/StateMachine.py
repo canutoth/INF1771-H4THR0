@@ -252,7 +252,7 @@ class GameStateMachine:
         else:
             nx, ny = game_ai.NextPositionRelative(1, "frente")
             if game_ai.map_knowledge.is_free(nx, ny):
-                num_steps = random.randint(5, 15)
+                num_steps = random.randint(5, 20)
                 # enfileira N vezes "andar"
                 self._current_path = ["andar"] * num_steps
             # após avançar, vira à esquerda ou direita
