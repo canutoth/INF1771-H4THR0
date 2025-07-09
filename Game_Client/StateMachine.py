@@ -162,14 +162,14 @@ class GameStateMachine:
                 # 1 tiro + move forward
                 nx, ny = game_ai.NextPositionRelative(1, "frente")
                 if game_ai.map_knowledge.is_free(nx, ny):
-                  self._attack_sequence = ["atacar", "andar"]
+                  self._attack_sequence = ["atacar"]
                 else:
                   self._attack_sequence = ["atacar"]
             elif 8 > dist >= 6:
                 # 2 tiros + move forward
                 nx, ny = game_ai.NextPositionRelative(1, "frente")
                 if game_ai.map_knowledge.is_free(nx, ny):
-                  self._attack_sequence = ["atacar", "atacar", "andar"]
+                  self._attack_sequence = ["atacar", "atacar"]
                 else:
                   self._attack_sequence = ["atacar"]
             elif 6 > dist >= 3:
@@ -179,7 +179,7 @@ class GameStateMachine:
                 # 4 tiros + move backward
                 nx, ny = game_ai.NextPositionRelative(1, "atras")
                 if game_ai.map_knowledge.is_free(nx, ny):
-                    self._attack_sequence = ["atacar"] * 4 + ["andar_re"]
+                    self._attack_sequence = ["atacar"] * 4 
                 else:
                     self._attack_sequence = ["atacar"]
         # pega próxima ação
