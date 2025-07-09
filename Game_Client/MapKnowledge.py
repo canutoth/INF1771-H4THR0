@@ -373,7 +373,10 @@ class MapKnowledge:
             column = []
             for y in range(self.HEIGHT):
                 cell = self.map[x][y]
-                is_passable = (cell[self.IDX_SAFE] == 1 and cell[self.IDX_WALK] != -1 and cell[self.IDX_PERCEPT] == 0) # Seguro e não bloqueado
+                # Só bloqueia se tiver poço ou teleporter, mas permite ouro/poção
+                danger_flags = self.PERCEPT["poço"] | self.PERCEPT["teleporter"]
+                has_danger = bool(cell[self.IDX_PERCEPT] & danger_flags)
+                is_passable = (cell[self.IDX_SAFE] == 1 and cell[self.IDX_WALK] != -1 and not has_danger)
                 column.append(1 if is_passable else 0)
             safe_map.append(column)
         return safe_map
