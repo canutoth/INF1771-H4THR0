@@ -43,10 +43,12 @@ class MapKnowledge:
         "west":  (-1,  0)
     }
 
+    game_ai = None  # GameAI
     bot = None  # BOT
     
-    def __init__(self, bot=None):
+    def __init__(self, bot=None, game_ai=None):
         self.bot = bot # BOT
+        self.game_ai = game_ai # GameAI
         default = [0, 0, 0, 0, 0]  # valores iniciais [safe, walk, percept, visits, certain]
         self.map: List[List[List[int]]] = [
             [default[:] for _ in range(self.HEIGHT)] for _ in range(self.WIDTH)
@@ -65,6 +67,7 @@ class MapKnowledge:
         
         # Sistema de controle de respawn de itens
         self.item_respawn_timers: Dict[Tuple[int, int], int] = {}  # {(x, y): ticks_restantes}
+        self.item_spawn_timestamps: Dict[Tuple[int, int], int] = {} # {(x, y): timestamp_ultimo_spawn}
 
     # ------------------------------ [API PRINCIPAL] ------------------------------
     #    ------------------------------ [INÍCIO] ------------------------------
@@ -117,6 +120,7 @@ class MapKnowledge:
 
             elif obs.startswith("redLight"):
                 cell[self.IDX_PERCEPT] |= self.PERCEPT["poçao"]
+                self._register_item_spawned(x, y)
 
             # PERCEPÇÕES ADJACENTES
             elif obs == "breeze":
@@ -343,6 +347,12 @@ class MapKnowledge:
                         continue
                     yield x, y, dist
 
+    # Registra que um item foi spawnado na coordenada especificada
+    def _register_item_spawned(self, x: int, y: int) -> None:
+        # grava o tick em que spawnou
+        self.item_spawn_timestamps[(x, y)] = self.game_ai.game_time_ticks
+
+
     # ------------------------------ [MÉTODOS AUXILIARES INTERNOS] ------------------------------
     #           ------------------------------ [FIM] ------------------------------
     # ------------------------------ [MÉTODOS AUXILIARES INTERNOS] ------------------------------
@@ -437,22 +447,23 @@ class MapKnowledge:
     
     # Registra que um item foi pego na coordenada especificada, iniciando o timer de respawn de 300 ticks
     def register_item_picked(self, x: int, y: int) -> None:
+        self.item_spawn_timestamps.pop((x, y), None) # remove da lista de spawn
         self.item_respawn_timers[(x, y)] = self.RESPAWN_TICKS
     
-    # Atualiza os timers de respawn (deve ser chamado a cada tick)
     def update_respawn_timers(self) -> None:
-        # Itera de trás para frente para poder remover items com segurança
-        expired_positions = []
-        for position, ticks_remaining in self.item_respawn_timers.items():
-            new_ticks = ticks_remaining - 1
-            if new_ticks <= 0:
-                expired_positions.append(position)
+        expired = []
+        # iterar sobre cópia pra não modificar dict em loop
+        for (x, y), ticks in list(self.item_respawn_timers.items()):
+            ticks -= 1
+            if ticks <= 0:
+                expired.append((x, y))
             else:
-                self.item_respawn_timers[position] = new_ticks
-        
-        # Remove posições que expiraram
-        for position in expired_positions:
-            del self.item_respawn_timers[position]
+                self.item_respawn_timers[(x, y)] = ticks
+
+        for x, y in expired:
+            del self.item_respawn_timers[(x, y)] # remove do dict de respawn
+            # registra spawn assim que o cooldown termina
+            self._register_item_spawned(x, y)
     
     # Verifica se um item pode ser pego na coordenada especificada
     def can_pick_item(self, x: int, y: int) -> bool:
@@ -481,6 +492,59 @@ class MapKnowledge:
             return 500
         return 0 #Genérico, não tem certeza
     
+
+    # Retorna a coordenada do melhor item respawnado do tipo 'potion' ou 'gold'
+    # Pondera igualmente distância Manhattan e tempo desde o respawn, para 'gold', considera também o valor do item (moedas valem mais que anéis).
+    def get_best_item(self, item_type: str) -> Optional[Tuple[int, int]]:
+        
+        # obtém tick atual e posição do jogador
+        current_tick = self.game_ai.game_time_ticks
+        px, py = self.game_ai.player.x, self.game_ai.player.y
+
+        # coleta bruta de candidatos:
+        # para 'potion': (x, y, dist, age)
+        # para 'gold':   (x, y, dist, age, reward)
+        raw = []
+        for (x, y), spawn_tick in self.item_spawn_timestamps.items():
+            age  = current_tick - spawn_tick           # tempo desde o spawn em ticks
+            dist = abs(x - px) + abs(y - py)            # distância Manhattan
+            if item_type == "potion" and self.is_potion_here(x, y):
+                raw.append((x, y, dist, age))
+            elif item_type == "gold" and self.is_gold_here(x, y):
+                reward = self.get_item_reward(x, y)     # 1000 para coin, 500 para ring
+                raw.append((x, y, dist, age, reward))
+        if not raw:
+            return None
+
+        # extrai extremos para normalização
+        dists = [r[2] for r in raw]
+        ages  = [r[3] for r in raw]
+        min_d, max_d = min(dists), max(dists)
+        min_a, max_a = min(ages),  max(ages)
+
+        # função de normalização para [0..1]
+        def normalize(v, mn, mx):
+            return 0.0 if mx == mn else (v - mn) / (mx - mn)
+
+        best = None
+        best_score = float('inf')
+        for entry in raw:
+            x, y, dist, age = entry[:4]
+            nd = normalize(dist, min_d, max_d)         # distância normalizada
+            na = normalize(age,  min_a, max_a)         # idade normalizada
+            score = (nd + na) / 2                      # média igualitária
+
+            if item_type == "gold":
+                reward = entry[4] / 1000               # normaliza reward para [0..1]
+                # ajusta: quanto maior reward, menor o score final
+                score = (score + (1 - reward)) / 2
+
+            # escolhe menor score (mais próximo, mais recente e maior valor)
+            if score < best_score:
+                best_score, best = score, (x, y)
+
+        return best
+
     # Verifica se a coordenada é segura e andável
     def is_free(self, x: int, y: int) -> bool:
         if not self._inside(x, y):

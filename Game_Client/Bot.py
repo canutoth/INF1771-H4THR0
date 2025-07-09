@@ -84,9 +84,9 @@ class Bot():
                             else:
                                 o.append(cmd[1])
                             self.gameAi.GetObservations(o)  # =======================================>>>>> ENVIA OBSERVAÇÕES (geral, menos hit e damage)
-                        self.debug_manager.log_observation(cmd) # DEBUG
+                            self.debug_manager.log_observation(cmd) # DEBUG
                     else:
-                        self.gameAi.GetObservationsClean()  # =======================================>>>>> LIMPA OBSERVAÇÕES
+                        print("linha 90 bot.pym olhar")
                 ######################################################        
                 elif cmd[0] ==  "s":
                     if len(cmd) > 1:

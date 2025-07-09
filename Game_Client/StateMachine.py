@@ -40,7 +40,8 @@ class GameStateMachine:
             "LookForOponent":   self._look_for_oponent,
             "Attack":           self._attack,
             "Evade":            self._evade, 
-            "FindGold":         self._find_gold
+            "FindGold":         self._find_gold,
+            "FindPotion":       self._find_potion  
         }
         
     # ---------- API pública ----------
@@ -86,24 +87,24 @@ class GameStateMachine:
         
         # Se energia conhecida e energia <30 -> FindPotion
 
+        # Viu inimigo e não está em cooldown -> Attack
+        if game_ai.see_enemy() and game_ai.game_time_ticks >= self._attack_cooldown_until:  
+            self.state = "Attack"
+            return
+            
         # Se ouro conhecido está a <2s de tempo de distância sobrando de respawn -> FindGold
         gold_spawning_soon = game_ai.gold_spawning_soon()
         if gold_spawning_soon[0]:
             self._gold_objective_position = gold_spawning_soon[1] # posição do ouro, recebe tuple[int,int]
             self.state = "FindGold"
             return
-         
+        
         # Se energia conhecida e energia <50 e alguma energia até 15 manhattan -> FindPotion
 
         # Se energia conhecida está a <2s de tempo de distância sobrando de respawn e a distancia até 15 manhattam -> FindPotion
 
         # Se conhece ouro e está 500+ rounds sem pegar -> FindGold
-
-        # Viu inimigo e não está em cooldown -> Attack
-        if game_ai.see_enemy() and game_ai.game_time_ticks >= self._attack_cooldown_until:  
-            self.state = "Attack"
-            return
-            
+        
         # Está no modo look -> LookForOponent
         if self._look_mode:
             self.state = "LookForOponent"
@@ -264,8 +265,7 @@ class GameStateMachine:
                 if game_ai.map_knowledge.is_free(nx, ny):
                     self._evade_sequence = ["virar_direita", "andar"]  
 
-                # pega próxima ação
-                
+        # pega próxima ação
         action = self._evade_sequence.pop(0)
         return action  
 
@@ -281,6 +281,8 @@ class GameStateMachine:
         # Faz a navegação para o alvo
         return self._navigate_to_target(game_ai, tgt)
 
+    def _find_potion(self, game_ai):
+        return ""
     # ---------- Sistema de Navegação ----------
 
     # Limpa o caminho e destino atuais.

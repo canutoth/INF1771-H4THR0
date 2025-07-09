@@ -25,7 +25,7 @@ class GameAI():
     def __init__(self, bot = None ,scoreboard_knowledge=None):
         self.bot = bot # BOT
         self.debug_manager = GameAIDebugManager() # DEBUG
-        self.map_knowledge = MapKnowledge(bot) # MAPA
+        self.map_knowledge = MapKnowledge(bot, self) # MAPA
         self.debug_manager.set_map_knowledge(self.map_knowledge) # DEBUG/MAPA
         self.scoreboard_knowledge = scoreboard_knowledge # SCOREBOARD
         self.state_machine = GameStateMachine()  
@@ -36,11 +36,12 @@ class GameAI():
         self._enemy_dist: int | None = None
         self._last_steps_ts = -999
         self._last_hit_ts = -999
+        self._last_time_score_earned = -999  # Último tick em que houve ganho de pontos
 
         # PathFinder reutilizável
         from PathFinder import create_path_finder
         self.path_finder = create_path_finder(self.map_knowledge)
-
+    
     # STATUS DO BOT
     def SetStatus(self, x: int, y: int, dir: str, state: str, score: int, energy: int):
         self.SetPlayerPosition(x, y)
@@ -70,7 +71,20 @@ class GameAI():
     def IncrementTick(self):
         self.game_time_ticks += 1 # Atualiza o número de ticks
         self.map_knowledge.update_respawn_timers() # Atualiza timers de respawn de itens
+        self._check_score_gain() # Verifica se houve ganho de pontos comparando com o tick anterior
         self.memory.append(self._capture_status()) # Captura o status atual do bot
+
+    # Método para verificar ganho de pontos entre ticks
+    def _check_score_gain(self):
+        # Se há pelo menos um tick anterior na memória
+        if len(self.memory) > 1 and self.memory[-1] is not None:
+            previous_score = self.memory[-1]['score']
+            current_score = self.score
+            
+            # Se houve ganho de pontos
+            if current_score > previous_score:
+                self._last_time_score_earned = self.game_time_ticks
+                self.debug_manager.log_observation([f"score_gained: {current_score - previous_score} points at tick {self.game_time_ticks}"])
     
     # Retorna a posição relativa ao jogador: "frente", "atras", "esquerda" ou "direita", em x passos
     def NextPositionRelative(self, steps, direction):
@@ -166,10 +180,11 @@ class GameAI():
     # ----------------- Helper API usada pela FSM -----------------
 
     # --- triggers ---
-    def see_enemy(self):          return self._enemy_dist is not None
-    def enemy_dist(self):         return self._enemy_dist or 99
-    def hear_steps(self):         return (self.game_time_ticks - self._last_steps_ts) <= 1
-    def take_hit(self):           return (self.game_time_ticks - self._last_hit_ts) <= 1
+    def see_enemy(self):          return self._enemy_dist is not None # Se há inimigo na frente
+    def enemy_dist(self):         return self._enemy_dist or 99 # Distância do inimigo, ou 99 se não houver inimigo
+    def hear_steps(self):         return (self.game_time_ticks - self._last_steps_ts) <= 1 # Se o bot ouviu passos recentemente (dentro de 1 tick)
+    def take_hit(self):           return (self.game_time_ticks - self._last_hit_ts) <= 1 # Se o bot levou dano recentemente (dentro de 1 tick)
+    def energy_leq(self, value: int) -> bool: return self.energy <= value  # Retorna True se a energia do robô é igual ou menor que o valor passado
     def gold_spawning_soon(self): 
         # Pega informações sobre items em cooldown
         respawn_info = self.map_knowledge.get_respawn_info()
@@ -199,7 +214,9 @@ class GameAI():
         candidatos.sort(key=lambda c: (-c[2], c[1]))
         melhor_pos = candidatos[0][0]
         return True, melhor_pos
-        
+    def get_last_score_gain_tick(self): return self._last_time_score_earned # Último tick em que houve ganho de pontos
+    def scored_recently(self, ticks_threshold=10): return (self.game_time_ticks - self._last_time_score_earned) <= ticks_threshold # Se o bot ganhou pontos recentemente (dentro de ticks_threshold ticks)
+   
     # --- pick-up override ---
     def _check_item_override(self) -> str:
         # Verifica se há ouro na posição atual e se pode ser pego

@@ -6,7 +6,7 @@ class BotDebugManager:
         self.filter_enabled = True
         self.raw_enabled = False
         self.last_message = {}
-        self.disabled = {}         
+        self.disabled = {"SCOREBOARD"}         
 
     # -------- CONTROLE --------
     def toggle_debug(self):
