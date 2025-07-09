@@ -216,36 +216,55 @@ class GameStateMachine:
     def _exploration(self, game_ai):
         # Se já tem um caminho em andamento, continua seguindo
         if self._current_path:
+            if self._current_path[0] == "andar": 
+                nx, ny = game_ai.NextPositionRelative(1, "frente")
+                if not game_ai.map_knowledge.is_free(nx, ny): # Não é seguro andar p frente
+                    self._clear_navigation() # Limpa navegação se não for seguro andar p frente (Andar em linha reta ruim)
+                    return "virar_esquerda" if random.random() < 0.5 else "virar_direita" # Gira
             return self._follow_current_path()
-        
-        # Se chegou ao destino atual, limpa navegação
-        if (self._current_target and 
-            game_ai.player.x == self._current_target[0] and 
-            game_ai.player.y == self._current_target[1]):
-            self._clear_navigation()
         
         # Escolhe novo destino aleatoriamente conforme percentuais especificados
         rand = random.randint(1, 100)
         tgt = None
         
+        # Ir para blocos seguros completamente aleatórios (2%)
         if rand <= 1:  # 1% → bloco conhecido aleatório
             known_coords = game_ai.map_knowledge.get_known_coordinates(game_ai.player.x, game_ai.player.y, 0)
             tgt = random.choice(known_coords) if known_coords else None
-        elif rand <= 3:  # 2% → bloco livre aleatório  
+        elif rand <= 2:  # 1% → bloco livre aleatório  
             free_coords = game_ai.map_knowledge.get_free_coordinates(game_ai.player.x, game_ai.player.y, 0)
             tgt = random.choice(free_coords) if free_coords else None
-        elif rand <= 8:  # 5% → bloco conhecido com ≤5 de distância
-            known_coords = game_ai.map_knowledge.get_known_coordinates(game_ai.player.x, game_ai.player.y, 5)
+
+
+        # Ir para blocos seguros aleatórios porém perto (8%)
+        elif rand <= 4:  # 2% → bloco conhecido com ≤10 de distância
+            known_coords = game_ai.map_knowledge.get_known_coordinates(game_ai.player.x, game_ai.player.y, 10)
             tgt = random.choice(known_coords) if known_coords else None
-        elif rand <= 16:  # 8% → bloco livre entre 5–10 de distância
-            free_coords = game_ai.map_knowledge.get_free_coordinates(game_ai.player.x, game_ai.player.y, random.randint(5, 10))
+        elif rand <= 10:  # 6% → bloco livre entre ≤10 de distância
+            free_coords = game_ai.map_knowledge.get_free_coordinates(game_ai.player.x, game_ai.player.y, 10)
             tgt = random.choice(free_coords) if free_coords else None
-        elif rand <= 30:  # 14% → bloco livre até 3 de distância
-            free_coords = game_ai.map_knowledge.get_free_coordinates(game_ai.player.x, game_ai.player.y, 3)
-            tgt = random.choice(free_coords) if free_coords else None
-        else:  # resto → bloco livre mais próximo
+
+        # Ir para bloco livre mais próximo (20%)
+        elif rand <= 30:  # 20% → bloco livre mais próximo
             tgt = game_ai.map_knowledge.get_free_coordinate_nearest(game_ai.player.x, game_ai.player.y)
         
+        # Follow straight line for 3-15 blocks (random) or until blocked (front block not safe), then turn (50/50 right or left) (70%)
+        else:
+            nx, ny = game_ai.NextPositionRelative(1, "frente")
+            if game_ai.map_knowledge.is_free(nx, ny):
+                num_steps = random.randint(3, 15)
+                # enfileira N vezes "andar"
+                self._current_path = ["andar"] * num_steps
+            # após avançar, vira à esquerda ou direita
+                if random.random() < 0.5:
+                    self._current_path.append("virar_esquerda")
+                else:
+                    self._current_path.append("virar_direita")
+                return self._follow_current_path()
+            else:
+                # Se o bloco à frente não é seguro, gira para explorar
+                return "virar_esquerda" if random.random() < 0.5 else "virar_direita"
+            
         # Se encontrou um alvo, calcula caminho e inicia navegação
         if tgt:
             return self._navigate_to_target(game_ai, tgt)
@@ -309,7 +328,16 @@ class GameStateMachine:
         return self._navigate_to_target(game_ai, tgt)
 
     def _find_potion(self, game_ai):
-        return ""
+        # Se já tem um caminho em andamento, continua seguindo
+        if self._current_path:
+            return self._follow_current_path()
+        
+        # Se há um alvo atual, ele é o target de navegação
+        tgt = self._potion_objective_position
+        
+        # Faz a navegação para o alvo
+        return self._navigate_to_target(game_ai, tgt)
+    
     # ---------- Sistema de Navegação ----------
 
     # Limpa o caminho e destino atuais.
