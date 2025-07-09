@@ -545,12 +545,15 @@ class MapKnowledge:
 
         return True, best
 
-    # Verifica se a coordenada é segura e não está bloqueada (NAO MUDE ESSA FUNÇÃO)
+    # Verifica se a coordenada é segura e não está bloqueada + sem percepções de poço ou teleporter
     def is_free(self, x: int, y: int) -> bool:
         if not self._inside(x, y):
             return False
         cell = self.map[x][y]
-        return cell[self.IDX_SAFE] == 1 and cell[self.IDX_WALK] != -1
+        # Verifica se não há percepções de poço ou teleporter
+        danger_flags = self.PERCEPT["poço"] | self.PERCEPT["teleporter"]
+        has_danger = bool(cell[self.IDX_PERCEPT] & danger_flags)
+        return cell[self.IDX_SAFE] == 1 and cell[self.IDX_WALK] != -1 and not has_danger
     
     # ------------------------------ [MÉTODOS AUXILIARES EXTERNOS] ------------------------------
     #           ------------------------------ [FIM] ------------------------------
