@@ -16,7 +16,7 @@ class Bot():
     # ==================== CONFIGURAÇÕES DO BOT ====================
     botcolor = (149, 0, 255)        # Cor do bot (RGB)
     name = "H4THR0_"                # Nome do bot
-    host = "atari.icad.puc-rio.br"  # Endereço do servidor
+    host = "192.168.0.100"  # Endereço do servidor
     port = 8888                     # Porta do servidor
 
     # ==================== VARIÁVEIS DE ESTADO ====================

@@ -13,7 +13,7 @@ class MapKnowledge:
         [4] certeza:     0 (desconhecido), 1 (certeza absoluta)
     """
 
-    RESPAWN_TICKS = 150 # 150 ticks = 15 segundos de respawn de itens
+    RESPAWN_TICKS = 160 # 150 ticks = 15 segundos de respawn de itens
 
     #Tamanho do mapa, vai de (0,0) [esquerda superior] a (58,33) [direita inferior]
     WIDTH, HEIGHT = 59, 34
@@ -545,15 +545,12 @@ class MapKnowledge:
 
         return True, best
 
-    # Verifica se a coordenada é segura e não está bloqueada + sem percepções de poço ou teleporter
+    # Verifica se a coordenada é segura e não está bloqueada (NAO MUDE ESSA FUNÇÃO)
     def is_free(self, x: int, y: int) -> bool:
         if not self._inside(x, y):
             return False
         cell = self.map[x][y]
-        # Verifica se não há percepções de poço ou teleporter
-        danger_flags = self.PERCEPT["poço"] | self.PERCEPT["teleporter"]
-        has_danger = bool(cell[self.IDX_PERCEPT] & danger_flags)
-        return cell[self.IDX_SAFE] == 1 and cell[self.IDX_WALK] != -1 and not has_danger
+        return cell[self.IDX_SAFE] == 1 and cell[self.IDX_WALK] != -1
     
     # ------------------------------ [MÉTODOS AUXILIARES EXTERNOS] ------------------------------
     #           ------------------------------ [FIM] ------------------------------

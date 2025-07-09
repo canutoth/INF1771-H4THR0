@@ -2,7 +2,6 @@
 from MapKnowledge import MapKnowledge               # MAPA
 from Debug.debug_game_ai import GameAIDebugManager  # DEBUG
 from StateMachine import GameStateMachine           # STATEMACHINE
-import random
 
 # CLASSE DA GAME AI
 # RECEBE INFORMAÇOES DE BOT.PY, AS PROCESSA E RETORNA DECISÕES
@@ -169,6 +168,8 @@ class GameAI():
             md = self.debug_manager.get_manual_decision()
             return md if md else ""
         # ---------- CONTROLE MANUAL (DEBUG) ----------
+
+        # 
         
         # 1) Regra prioritária: pegar ouro/poção embaixo dos pés
         pickup = self._check_item_override()
@@ -176,19 +177,7 @@ class GameAI():
             return pickup
         
         # 2) Delega à FSM simplificada
-        action = self.state_machine.next_action(self)
-        if action == "andar":
-            # Re-Verificação de segurança antes de andar
-            next_pos = self.NextPositionRelative(1, "frente")
-            # Verifica se a próxima posição é segura (novamente, por segurança)
-            if self.map_knowledge.is_free(next_pos[0], next_pos[1]):
-                return "andar"
-            else:
-                # Se não for seguro, limpa a navegação da FSM
-                self.state_machine._clear_navigation()
-                # Tenta virar (fallback)
-                return "virar_esquerda" if random.random() < 0.5 else "virar_direita" # Gira
-        return action if action else ""
+        return self.state_machine.next_action(self)
 
 
     # ----------------- Helper API usada pela FSM -----------------
