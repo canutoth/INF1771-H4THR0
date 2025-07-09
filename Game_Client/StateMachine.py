@@ -34,6 +34,9 @@ class GameStateMachine:
 
         # FindGold
         self._gold_objective_position = None 
+        self._waiting_for_respawn = False        # Se está esperando item respawnar
+        self._wait_start_tick = 0                # Tick em que começou a esperar
+        self._wait_ticks_remaining = 0           # Quantos ticks ainda precisa esperar
 
         # FindPotion
         self._potion_objective_position = None 
@@ -85,6 +88,7 @@ class GameStateMachine:
     # ---------- Transições ----------
     def _pick_state(self, game_ai):
 
+
         # Se tomou dano -> Evade
         if game_ai.take_hit():
             self.state = "Evade"
@@ -97,6 +101,11 @@ class GameStateMachine:
             self._potion_objective_position = have_potion[1] # posição da poçao, recebe tuple[int,int]
             self.state = "FindPotion"
             return
+
+        # Se está esperando respawn, mantém o estado atual e não muda
+        if self._waiting_for_respawn:
+            return
+
 
         # Está no modo look -> LookForOponent
         if self._look_mode:
@@ -316,6 +325,32 @@ class GameStateMachine:
         return action  
 
     def _find_gold(self, game_ai): 
+        # Se está esperando o respawn
+        if self._waiting_for_respawn:
+            # Verifica se chegou na posição de espera
+            tgt = self._gold_objective_position
+            if tgt and game_ai.player.x == tgt[0] and game_ai.player.y == tgt[1]:
+                # Verifica se ainda tem ticks para esperar
+                if self._wait_ticks_remaining > 0:
+                    self._wait_ticks_remaining -= 1
+                    return ""  # Fica parado (não faz nada)
+                else:
+                    # Terminou de esperar, para de esperar
+                    self._waiting_for_respawn = False
+                    # Verifica se tem ouro para pegar na posição atual
+                    if game_ai.map_knowledge.is_gold_here(game_ai.player.x, game_ai.player.y):
+                        # Registra que o item foi pego para iniciar timer de respawn (se ainda não foi registrado)
+                        if game_ai.map_knowledge.can_pick_item(game_ai.player.x, game_ai.player.y):
+                            game_ai.map_knowledge.register_item_picked(game_ai.player.x, game_ai.player.y)
+                        return "pegar_ouro"
+                    # Se não tem ouro, volta para exploração
+                    self.state = "Exploration"
+                    return ""
+            else:
+                # Não está na posição ainda, continua navegando
+                if self._current_path:
+                    return self._follow_current_path()
+                return self._navigate_to_target(game_ai, tgt)
 
         # Se já tem um caminho em andamento, continua seguindo
         if self._current_path:
@@ -323,6 +358,30 @@ class GameStateMachine:
         
         # Se há um alvo atual, ele é o target de navegação
         tgt = self._gold_objective_position
+        
+        # Verifica se chegou no destino
+        if tgt and game_ai.player.x == tgt[0] and game_ai.player.y == tgt[1]:
+            # Chegou na posição do ouro, verifica se precisa esperar o respawn
+            respawn_info = game_ai.map_knowledge.get_respawn_info()
+            if tgt in respawn_info:
+                ticks_left = respawn_info[tgt]
+                # Se ainda faltam entre 1 e 5 ticks para respawnar, espera 7 ticks
+                if 1 <= ticks_left <= 5:
+                    self._waiting_for_respawn = True
+                    self._wait_start_tick = game_ai.game_time_ticks
+                    self._wait_ticks_remaining = 7  # Espera 7 ticks
+                    return ""  # Fica parado
+            
+            # Se chegou aqui, o ouro já respawnou ou não precisa esperar
+            # Verifica se tem ouro para pegar na posição atual
+            if game_ai.map_knowledge.is_gold_here(game_ai.player.x, game_ai.player.y):
+                # Registra que o item foi pego para iniciar timer de respawn (se ainda não foi registrado)
+                if game_ai.map_knowledge.can_pick_item(game_ai.player.x, game_ai.player.y):
+                    game_ai.map_knowledge.register_item_picked(game_ai.player.x, game_ai.player.y)
+                return "pegar_ouro"
+            # Se não tem ouro, volta para exploração
+            self.state = "Exploration"
+            return ""
         
         # Faz a navegação para o alvo
         return self._navigate_to_target(game_ai, tgt)
@@ -344,6 +403,8 @@ class GameStateMachine:
     def _clear_navigation(self):
         self._current_path = []
         self._current_target = None
+        self._waiting_for_respawn = False
+        self._wait_ticks_remaining = 0
     
     # Inicia a navegação para um novo destino.
     def _navigate_to_target(self, game_ai, target: Tuple[int, int]) -> str:
