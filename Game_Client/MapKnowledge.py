@@ -120,7 +120,6 @@ class MapKnowledge:
 
             elif obs.startswith("redLight"):
                 cell[self.IDX_PERCEPT] |= self.PERCEPT["poçao"]
-                self._register_item_spawned(x, y)
 
             # PERCEPÇÕES ADJACENTES
             elif obs == "breeze":
@@ -546,12 +545,12 @@ class MapKnowledge:
 
         return True, best
 
-    # Verifica se a coordenada é segura e andável
+    # Verifica se a coordenada é segura e não está bloqueada (NAO MUDE ESSA FUNÇÃO)
     def is_free(self, x: int, y: int) -> bool:
         if not self._inside(x, y):
             return False
         cell = self.map[x][y]
-        return cell[self.IDX_SAFE] == 1 and cell[self.IDX_WALK] == 1
+        return cell[self.IDX_SAFE] == 1 and cell[self.IDX_WALK] != 1
     
     # ------------------------------ [MÉTODOS AUXILIARES EXTERNOS] ------------------------------
     #           ------------------------------ [FIM] ------------------------------
