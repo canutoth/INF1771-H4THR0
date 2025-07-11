@@ -1,5 +1,11 @@
 # t4-desafio-final-h4thr0-bot
 escolhemos fazer com máquina de estados
+
+Grupo
+- Theo Canuto
+- Hanna
+- Robbie Carvalho
+
 ## Requisitos
 
 - Windows
